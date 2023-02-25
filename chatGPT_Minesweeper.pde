@@ -2,10 +2,11 @@
   This is a basic minesweep clone, written mostly by ChatGPT.
 */
 
-int cols = 20;
-int rows = 20;
-int w = 20;
-int totalMines = 40;
+int cols = 40;
+int rows = 30;
+int w = 40;
+float density = 2.0;
+int totalMines = int((cols+rows)*density);
 Cell[][] grid = new Cell[cols][rows];
 boolean gameOver = false;
 
@@ -132,7 +133,7 @@ class Cell {
           else if(neighborCount == 2) fill(0,255,0);
           else if(neighborCount == 3) fill(255,255,0);
           else if(neighborCount >= 4) fill(255,0,0);
-          text(neighborCount, i * w + w/2, j * w + (w-2));
+          text(neighborCount, i * w + w/2, j * w + (w-4));
         }
       }
     } else if (flag) {
@@ -140,7 +141,7 @@ class Cell {
       textAlign(CENTER);
       textSize(w);
       fill(255,0,0);
-      text("F", i * w + w/2, j * w + (w-2));
+      text("F", i * w + w/2, j * w + (w-4));
     }
   }
 
