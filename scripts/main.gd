@@ -39,6 +39,9 @@ var ant_step_counter: int = 0
 var seed_fill: float = 0.5
 
 var ui_ready: bool = false
+var is_paused: bool = false
+
+var step_requested: bool = false
 
 @onready var grid_view: TextureRect = TextureRect.new()
 @onready var info_label: Label = Label.new()
@@ -82,6 +85,21 @@ func build_ui() -> void:
     info_label.text = "Grid ready"
     info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
     info_row.add_child(info_label)
+
+    var play_button := Button.new()
+    play_button.text = "Pause"
+    play_button.pressed.connect(func():
+        is_paused = !is_paused
+        play_button.text = "Play" if is_paused else "Pause"
+    )
+    info_row.add_child(play_button)
+
+    var step_button := Button.new()
+    step_button.text = "Step"
+    step_button.pressed.connect(func():
+        step_requested = true
+    )
+    info_row.add_child(step_button)
 
     var controls := HBoxContainer.new()
     controls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -362,31 +380,6 @@ func spawn_ants(count: int, color: Color) -> void:
         ant_colors.append(color)
     render_grid()
 
-func _process(delta: float) -> void:
-    wolfram_accumulator += delta
-    ant_accumulator += delta
-    gol_accumulator += delta
-
-    if wolfram_enabled and wolfram_rate > 0.0:
-        var interval := 1.0 / wolfram_rate
-        while wolfram_accumulator >= interval:
-            wolfram_accumulator -= interval
-            step_wolfram()
-    
-    if ants_enabled and ant_rate > 0.0:
-        var ant_interval := 1.0 / ant_rate
-        while ant_accumulator >= ant_interval:
-            ant_accumulator -= ant_interval
-            step_ants()
-
-    if gol_enabled and gol_rate > 0.0:
-        var gol_interval := 1.0 / gol_rate
-        while gol_accumulator >= gol_interval:
-            gol_accumulator -= gol_interval
-            step_game_of_life()
-
-    render_grid()
-
 func wrap_position(pos: Vector2i) -> Vector2i:
     return Vector2i(posmod(pos.x, grid_size.x), posmod(pos.y, grid_size.y))
 
@@ -419,6 +412,42 @@ func set_cell(pos: Vector2i, value: int) -> void:
     if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
         return
     grid[pos.y * grid_size.x + pos.x] = clamp(value, 0, 1)
+
+func process_wolfram(delta: float) -> bool:
+    if not wolfram_enabled or wolfram_rate <= 0.0:
+        return false
+    wolfram_accumulator += delta
+    var interval := 1.0 / wolfram_rate
+    var stepped := false
+    while wolfram_accumulator >= interval:
+        step_wolfram()
+        wolfram_accumulator -= interval
+        stepped = true
+    return stepped
+
+func process_ants(delta: float) -> bool:
+    if not ants_enabled or ant_rate <= 0.0:
+        return false
+    ant_accumulator += delta
+    var interval := 1.0 / ant_rate
+    var stepped := false
+    while ant_accumulator >= interval:
+        step_ants()
+        ant_accumulator -= interval
+        stepped = true
+    return stepped
+
+func process_game_of_life(delta: float) -> bool:
+    if not gol_enabled or gol_rate <= 0.0:
+        return false
+    gol_accumulator += delta
+    var interval := 1.0 / gol_rate
+    var stepped := false
+    while gol_accumulator >= interval:
+        step_game_of_life()
+        gol_accumulator -= interval
+        stepped = true
+    return stepped
 
 func step_wolfram() -> void:
     var source_row := (wolfram_row - 1 + grid_size.y) % grid_size.y
@@ -520,6 +549,33 @@ func render_grid() -> void:
                     img.set_pixel(x * cell_size + ox, y * cell_size + oy, color)
     var tex := ImageTexture.create_from_image(img)
     grid_view.texture = tex
+
+func _process(delta: float) -> void:
+    if not ui_ready:
+        return
+    if is_paused and not step_requested:
+        return
+
+    var updated := false
+
+    updated = process_wolfram(delta) or updated
+    updated = process_ants(delta) or updated
+    updated = process_game_of_life(delta) or updated
+
+    if step_requested:
+        if wolfram_enabled:
+            step_wolfram()
+            updated = true
+        if ants_enabled:
+            step_ants()
+            updated = true
+        if gol_enabled:
+            step_game_of_life()
+            updated = true
+        step_requested = false
+
+    if updated:
+        render_grid()
 
 func _notification(what):
     if what == NOTIFICATION_RESIZED:

@@ -11,6 +11,8 @@ Open the project in Godot 4.5.1 and play the **Main** scene. The UI is created a
   - Edge behavior: Wrap (default), Bounce, or Fall off.
   - Alive/dead color pickers (default white/black).
   - Random seeding with adjustable coverage percentage and a clear button.
+- **Playback**
+  - Global Play/Pause toggle plus a single-step button to advance every enabled automaton once while paused.
 - **Wolfram**
   - Rule selector (0–255), per-second rate (floats allowed), auto toggle, and manual step.
   - Sweeps from the top row downward, wrapping when it reaches the bottom.
