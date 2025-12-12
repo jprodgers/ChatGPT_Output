@@ -288,16 +288,18 @@ func setup_upgrades() -> void:
         create_upgrade("bulk_wire_2", "Bulk wire spool II", "+500 wire per purchase", 240, func(): wire_per_purchase += 500),
         create_upgrade("marketing_insight_1", "Marketing insight I", "-10% marketing costs", 200, func(): marketing_discount += 0.1),
         create_upgrade("marketing_insight_2", "Marketing insight II", "-12% marketing costs", 320, func(): marketing_discount += 0.12),
-        create_upgrade("price_optimizer", "Price optimizer", "Price shifts reduce demand less", 280, func():
-            price_sensitivity = max(0.6, price_sensitivity - 0.15)
-            demand_bonus += 0.05
-        ),
+        create_upgrade("price_optimizer", "Price optimizer", "Price shifts reduce demand less", 280, Callable(self, "apply_price_optimizer")),
         create_upgrade("processor_boost", "Processor boost", "+15% ops/sec", 240, func(): ops_rate_bonus += 0.15),
-        create_upgrade("memory_boost", "Memory boost", "+20 ops capacity", 210, func():
-            ops_capacity_bonus += 20
-            update_ops_capacity()
-        )
+        create_upgrade("memory_boost", "Memory boost", "+20 ops capacity", 210, Callable(self, "apply_memory_boost"))
     ])
+
+func apply_price_optimizer() -> void:
+    price_sensitivity = max(0.6, price_sensitivity - 0.15)
+    demand_bonus += 0.05
+
+func apply_memory_boost() -> void:
+    ops_capacity_bonus += 20
+    update_ops_capacity()
 
 func create_upgrade(key: String, label: String, description: String, ops_cost: int, effect: Callable) -> Upgrade:
     var upgrade: Upgrade = Upgrade.new()
