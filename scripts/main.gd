@@ -38,6 +38,9 @@ var ant_step_counter: int = 0
 
 var seed_fill: float = 0.5
 
+var global_rate: float = 1.0
+var global_accumulator: float = 0.0
+
 var ui_ready: bool = false
 var is_paused: bool = false
 
@@ -183,6 +186,20 @@ func build_grid_controls() -> VBoxContainer:
     size_row.add_child(cell_size_spin)
     box.add_child(size_row)
 
+    var global_rate_row := HBoxContainer.new()
+    var global_rate_label := Label.new()
+    global_rate_label.text = "Updates/sec"
+    global_rate_row.add_child(global_rate_label)
+    var global_rate_spin := SpinBox.new()
+    global_rate_spin.min_value = 0.0
+    global_rate_spin.max_value = 5000.0
+    global_rate_spin.step = 0.1
+    global_rate_spin.allow_greater = true
+    global_rate_spin.value = global_rate
+    global_rate_spin.value_changed.connect(func(v): global_rate = max(0.0, v))
+    global_rate_row.add_child(global_rate_spin)
+    box.add_child(global_rate_row)
+
     var edge_row := HBoxContainer.new()
     var edge_label := Label.new()
     edge_label.text = "Edges"
@@ -227,6 +244,7 @@ func build_grid_controls() -> VBoxContainer:
     clear_button.text = "Clear"
     clear_button.pressed.connect(func():
         grid.fill(0)
+        clear_ants()
         render_grid()
     )
     box.add_child(clear_button)
@@ -331,6 +349,13 @@ func build_ant_controls() -> VBoxContainer:
     buttons.add_child(step)
     box.add_child(buttons)
 
+    var clear_row := HBoxContainer.new()
+    var clear_button := Button.new()
+    clear_button.text = "Clear ants"
+    clear_button.pressed.connect(func(): clear_ants(); render_grid())
+    clear_row.add_child(clear_button)
+    box.add_child(clear_row)
+
     return box
 
 func build_gol_controls() -> VBoxContainer:
@@ -392,10 +417,7 @@ func update_grid_size() -> void:
         grid.resize(grid_size.x * grid_size.y)
         grid.fill(0)
         wolfram_row = 0
-        ants.clear()
-        ant_directions.clear()
-        ant_colors.clear()
-        ant_step_counter = 0
+        clear_ants()
     info_label.text = "Grid: %dx%d cells @ %d px" % [grid_size.x, grid_size.y, cell_size]
 
 func random_fill_grid() -> void:
@@ -429,6 +451,12 @@ func spawn_ants(count: int, color: Color) -> void:
         ant_directions.append(rng.randi_range(0, DIRS.size() - 1))
         ant_colors.append(color)
     render_grid()
+
+func clear_ants() -> void:
+    ants.clear()
+    ant_directions.clear()
+    ant_colors.clear()
+    ant_step_counter = 0
 
 func wrap_position(pos: Vector2i) -> Vector2i:
     return Vector2i(posmod(pos.x, grid_size.x), posmod(pos.y, grid_size.y))
@@ -605,6 +633,15 @@ func _process(delta: float) -> void:
         return
     if is_paused and not step_requested:
         return
+
+    if not step_requested and global_rate > 0.0:
+        global_accumulator += delta
+        var global_interval := 1.0 / global_rate
+        if global_accumulator < global_interval:
+            return
+        global_accumulator -= global_interval
+    else:
+        global_accumulator = 0.0
 
     var updated := false
 

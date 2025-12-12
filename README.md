@@ -9,9 +9,10 @@ The control panel lives on the left to maximize horizontal space for the grid an
 ## Controls & Features
 - **Grid**
   - Cell size slider (1–128 px) keeps the grid aligned to the viewport area beside the sidebar; resizing or changing cell size rebuilds the grid.
+  - Global updates-per-second gate (default 1.0) to throttle or stress-test how often automata logic runs per frame.
   - Edge behavior: Wrap (default), Bounce, or Fall off.
   - Alive/dead color pickers (default white/black).
-  - Random seeding with adjustable coverage percentage and a clear button.
+  - Random seeding with adjustable coverage percentage and a clear button that also clears ants.
 - **Playback**
   - Global Play/Pause toggle plus a single-step button to advance every enabled automaton once while paused.
 - **Wolfram**
@@ -20,6 +21,7 @@ The control panel lives on the left to maximize horizontal space for the grid an
   - Sweeps from the top row downward, wrapping when it reaches the bottom.
 - **Langton's Ant**
   - Spawn any number of ants with a chosen color; supports edge behaviors above.
+  - Dedicated “Clear ants” action to remove all walkers when needed.
   - Per-second rate, auto toggle, and manual step.
 - **Game of Life**
   - Per-second rate (float), auto toggle, and manual step.
