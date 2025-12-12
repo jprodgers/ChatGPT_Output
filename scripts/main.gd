@@ -1,7 +1,6 @@
-extends Control
-
 @icon("res://icon.svg")
 class_name CellularAutomataHub
+extends Control
 
 const DIRS: Array[Vector2i] = [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]
 const EDGE_WRAP := 0
@@ -337,8 +336,11 @@ func update_grid_size() -> void:
 func random_fill_grid() -> void:
     var rng := RandomNumberGenerator.new()
     rng.randomize()
-    for i in grid.size():
-        grid[i] = rng.randf() < seed_fill ? 1 : 0
+    for i in range(grid.size()):
+        if rng.randf() < seed_fill:
+            grid[i] = 1
+        else:
+            grid[i] = 0
 
 func spawn_ants(count: int, color: Color) -> void:
     var rng := RandomNumberGenerator.new()
@@ -428,8 +430,12 @@ func step_ants() -> void:
 
         var idx := pos.y * grid_size.x + pos.x
         var current := grid[idx]
-        ant_directions[i] = current == 1 ? (ant_directions[i] + 1) % DIRS.size() : (ant_directions[i] + DIRS.size() - 1) % DIRS.size()
-        grid[idx] = current == 1 ? 0 : 1
+        if current == 1:
+            ant_directions[i] = (ant_directions[i] + 1) % DIRS.size()
+            grid[idx] = 0
+        else:
+            ant_directions[i] = (ant_directions[i] + DIRS.size() - 1) % DIRS.size()
+            grid[idx] = 1
 
         var next := pos + DIRS[ant_directions[i]]
         if edge_mode == EDGE_WRAP:
@@ -470,9 +476,15 @@ func step_game_of_life() -> void:
                     neighbors += sample_cell(Vector2i(x + dx, y + dy))
             var new_val := 0
             if alive == 1:
-                new_val = neighbors == 2 or neighbors == 3 ? 1 : 0
+                if neighbors == 2 or neighbors == 3:
+                    new_val = 1
+                else:
+                    new_val = 0
             else:
-                new_val = neighbors == 3 ? 1 : 0
+                if neighbors == 3:
+                    new_val = 1
+                else:
+                    new_val = 0
             next_state[y * grid_size.x + x] = new_val
     grid = next_state
 
@@ -486,7 +498,11 @@ func render_grid() -> void:
         ant_map[ants[i]] = ant_colors[i]
     for y in range(grid_size.y):
         for x in range(grid_size.x):
-            var color := grid[y * grid_size.x + x] == 1 ? alive_color : dead_color
+            var color: Color
+            if grid[y * grid_size.x + x] == 1:
+                color = alive_color
+            else:
+                color = dead_color
             if ant_map.has(Vector2i(x, y)):
                 color = ant_map[Vector2i(x, y)]
             for oy in range(cell_size):
