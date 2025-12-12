@@ -7,7 +7,7 @@ const EDGE_WRAP: int = 0
 const EDGE_BOUNCE: int = 1
 const EDGE_FALLOFF: int = 2
 
-var cell_size: int = 2
+var cell_size: int = 8
 var grid_size: Vector2i = Vector2i.ZERO
 var grid: PackedByteArray = PackedByteArray()
 
@@ -22,29 +22,32 @@ var wolfram_rate: float = 1.0
 var wolfram_accumulator: float = 0.0
 var wolfram_enabled: bool = false
 
-var ant_rate: float = 1.0
+var ant_rate: float = 10.0
 var ant_accumulator: float = 0.0
 var ants_enabled: bool = false
 
-var gol_rate: float = 0.01
+var gol_rate: float = 1.0
 var gol_accumulator: float = 0.0
 var gol_enabled: bool = false
 var gol_every_ant_steps: int = 100
-var gol_trigger_from_ants: bool = true
+var gol_trigger_from_ants: bool = false
 
 var ants: Array[Vector2i] = []
 var ant_directions: Array[int] = []
 var ant_colors: Array[Color] = []
 var ant_step_counter: int = 0
 
-var seed_fill: float = 0.5
+var seed_fill: float = 0.2
 
-var global_rate: float = 1.0
+var global_rate: float = 10.0
 
 var ui_ready: bool = false
-var is_paused: bool = false
+var is_paused: bool = true
 
 var step_requested: bool = false
+
+var export_pattern: String = "screenshot####.png"
+var export_counter: int = 0
 
 @onready var grid_view: TextureRect = TextureRect.new()
 @onready var info_label: Label = Label.new()
@@ -62,6 +65,7 @@ var step_requested: bool = false
 @onready var ant_color_picker: ColorPickerButton = ColorPickerButton.new()
 @onready var ant_count_spin: SpinBox = SpinBox.new()
 @onready var fill_spin: SpinBox = SpinBox.new()
+@onready var export_pattern_edit: LineEdit = LineEdit.new()
 
 func _ready() -> void:
     set_process(true)
@@ -100,7 +104,7 @@ func build_ui() -> void:
     info_row.add_child(info_label)
 
     var play_button: Button = Button.new()
-    play_button.text = "Pause"
+    play_button.text = "Play" if is_paused else "Pause"
     play_button.pressed.connect(func() -> void:
         is_paused = !is_paused
         play_button.text = "Play" if is_paused else "Pause"
@@ -124,6 +128,7 @@ func build_ui() -> void:
     scroll.add_child(controls_column)
 
     controls_column.add_child(build_collapsible_section("Grid", build_grid_controls()))
+    controls_column.add_child(build_collapsible_section("Export", build_export_controls()))
     controls_column.add_child(build_collapsible_section("Wolfram", build_wolfram_controls()))
     controls_column.add_child(build_collapsible_section("Langton's Ant", build_ant_controls()))
     controls_column.add_child(build_collapsible_section("Game of Life", build_gol_controls()))
@@ -248,6 +253,35 @@ func build_grid_controls() -> VBoxContainer:
         render_grid()
     )
     box.add_child(clear_button)
+
+    return box
+
+func build_export_controls() -> VBoxContainer:
+    var box: VBoxContainer = VBoxContainer.new()
+    box.add_theme_constant_override("separation", 6)
+
+    var pattern_row: HBoxContainer = HBoxContainer.new()
+    var pattern_label: Label = Label.new()
+    pattern_label.text = "Filename"
+    pattern_row.add_child(pattern_label)
+    export_pattern_edit.text = export_pattern
+    export_pattern_edit.placeholder_text = "user://screenshot####.png"
+    export_pattern_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    export_pattern_edit.text_changed.connect(func(text: String) -> void:
+        export_pattern = text
+    )
+    pattern_row.add_child(export_pattern_edit)
+    box.add_child(pattern_row)
+
+    var export_row: HBoxContainer = HBoxContainer.new()
+    var export_button: Button = Button.new()
+    export_button.text = "Export PNG"
+    export_button.pressed.connect(func() -> void: export_grid_image())
+    export_row.add_child(export_button)
+    var hint: Label = Label.new()
+    hint.text = "Use # for numbering"
+    export_row.add_child(hint)
+    box.add_child(export_row)
 
     return box
 
@@ -646,27 +680,58 @@ func step_game_of_life() -> void:
             next_state[y * grid_size.x + x] = new_val
     grid = next_state
 
-func render_grid() -> void:
-    if grid_size.x <= 0 or grid_size.y <= 0:
-        return
+func build_grid_image() -> Image:
     var img: Image = Image.create(grid_size.x * cell_size, grid_size.y * cell_size, false, Image.FORMAT_RGBA8)
     var ant_map: Dictionary = {}
     for i in range(ants.size()):
         ant_map[ants[i]] = ant_colors[i]
     for y in range(grid_size.y):
         for x in range(grid_size.x):
-            var color: Color
-            if grid[y * grid_size.x + x] == 1:
-                color = alive_color
-            else:
-                color = dead_color
+            var color: Color = dead_color if grid[y * grid_size.x + x] == 0 else alive_color
             if ant_map.has(Vector2i(x, y)):
                 color = ant_map[Vector2i(x, y)]
             for oy in range(cell_size):
                 for ox in range(cell_size):
                     img.set_pixel(x * cell_size + ox, y * cell_size + oy, color)
+    return img
+
+func render_grid() -> void:
+    if grid_size.x <= 0 or grid_size.y <= 0:
+        return
+    var img: Image = build_grid_image()
     var tex: ImageTexture = ImageTexture.create_from_image(img)
     grid_view.texture = tex
+
+func export_grid_image() -> void:
+    if grid_size.x <= 0 or grid_size.y <= 0:
+        return
+    var img: Image = build_grid_image()
+    var path: String = resolve_export_path()
+    var err: int = img.save_png(path)
+    if err == OK:
+        export_counter += 1
+        info_label.text = "Exported: %s" % path
+    else:
+        info_label.text = "Export failed (%d)" % err
+
+func resolve_export_path() -> String:
+    var pattern: String = export_pattern
+    var pad_start: int = -1
+    var pad_len: int = 0
+    for i in pattern.length():
+        if pattern[i] == '#':
+            if pad_start == -1:
+                pad_start = i
+            pad_len += 1
+        elif pad_start != -1:
+            break
+    if pad_len > 0:
+        var number_str: String = str(export_counter).pad_zeros(pad_len)
+        pattern = pattern.substr(0, pad_start) + number_str + pattern.substr(pad_start + pad_len)
+    var path: String = pattern
+    if not path.begins_with("user://") and not path.begins_with("res://") and not path.begins_with("/"):
+        path = "user://" + path
+    return path
 
 func _process(delta: float) -> void:
     if not ui_ready:

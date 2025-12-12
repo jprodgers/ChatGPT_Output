@@ -8,13 +8,15 @@ The control panel lives on the left to maximize horizontal space for the grid an
 
 ## Controls & Features
 - **Grid**
-  - Cell size slider (1–128 px, default 2) keeps the grid aligned to the viewport area beside the sidebar; resizing or changing cell size rebuilds the grid.
-  - Global updates-per-second gate (default 1.0) scales automata speed up or down; raise it to drive faster-than-real-time updates.
+  - Cell size slider (1–128 px, default 8) keeps the grid aligned to the viewport area beside the sidebar; resizing or changing cell size rebuilds the grid.
+  - Global updates-per-second gate (default 10.0) scales automata speed up or down; raise it to drive faster-than-real-time updates.
   - Edge behavior: Wrap (default), Bounce, or Fall off.
   - Alive/dead color pickers (default white/black).
-  - Random seeding with adjustable coverage percentage and a clear button that also clears ants (automata start disabled and unseeded by default).
+  - Random seeding with adjustable coverage percentage (default 20%) and a clear button that also clears ants (automata start disabled, unseeded, and paused by default).
 - **Playback**
   - Global Play/Pause toggle plus a single-step button to advance every enabled automaton once while paused.
+- **Export**
+  - Filename pattern field and one-click **Export PNG** button. Use `#` characters for an auto-incremented counter (e.g. `screenshot####.png` saves to `user://screenshot0000.png`, then `0001`, etc.).
 - **Wolfram**
   - Rule selector (0–255, defaults to 30), per-second rate (floats allowed), auto toggle (off by default), and manual step.
   - One-click top-row seeds: random fill based on the current seed percentage or a single centered dot, both resetting the Wolfram sweep to the second row.
@@ -23,10 +25,10 @@ The control panel lives on the left to maximize horizontal space for the grid an
 - **Langton's Ant**
   - Spawn any number of ants with a chosen color; supports edge behaviors above.
   - Dedicated “Clear ants” action to remove all walkers when needed and the global “Clear” grid button also removes ants.
-  - Per-second rate, auto toggle (off by default), and manual step.
+  - Per-second rate (default 10.0), auto toggle (off by default), and manual step.
 - **Game of Life**
-  - Per-second rate (float), auto toggle (off by default), and manual step.
-  - Optional ant chaining: check the box next to “Every N ant steps” to fire a GoL sweep after that many ant updates (e.g., 100); uncheck to run GoL independently.
+  - Per-second rate (float, default 1.0), auto toggle (off by default), and manual step.
+  - Optional ant chaining: check the box next to “Every N ant steps” to fire a GoL sweep after that many ant updates (e.g., 100); uncheck to run GoL independently (default unchecked).
 
 ## Suggested Workflow
 1. Set a Wolfram rule and speed to seed the grid from the top.
