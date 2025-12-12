@@ -397,7 +397,6 @@ func refresh_ui() -> void:
     labels["marketing"].text = str(marketing_level)
     labels["autoclippers"].text = str(autoclippers)
 
-    labels["current_price"].text = format_currency(price)
     labels["demand"].text = "Demand: %.2f clips / sec" % get_demand_per_second()
     labels["processors"].text = str(processors)
     labels["memory"].text = str(memory_banks)
