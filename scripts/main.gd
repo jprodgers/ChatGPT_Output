@@ -16,7 +16,7 @@ var dead_color: Color = Color.BLACK
 
 var edge_mode: int = EDGE_WRAP
 
-var wolfram_rule: int = 110
+var wolfram_rule: int = 30
 var wolfram_row: int = 0
 var wolfram_rate: float = 1.0
 var wolfram_accumulator: float = 0.0
@@ -30,6 +30,7 @@ var gol_rate: float = 0.01
 var gol_accumulator: float = 0.0
 var gol_enabled: bool = false
 var gol_every_ant_steps: int = 100
+var gol_trigger_from_ants: bool = true
 
 var ants: Array[Vector2i] = []
 var ant_directions: Array[int] = []
@@ -138,6 +139,7 @@ func build_ui() -> void:
     grid_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     grid_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
     grid_view.set_anchors_preset(Control.PRESET_FULL_RECT)
+    grid_view.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
     grid_view.modulate = Color.WHITE
     view_container.add_child(grid_view)
 
@@ -300,6 +302,16 @@ func build_wolfram_controls() -> VBoxContainer:
     seed_row.add_child(center_seed)
     box.add_child(seed_row)
 
+    var fill_row: HBoxContainer = HBoxContainer.new()
+    var fill_button: Button = Button.new()
+    fill_button.text = "Fill screen"
+    fill_button.pressed.connect(func() -> void:
+        fill_wolfram_screen()
+        render_grid()
+    )
+    fill_row.add_child(fill_button)
+    box.add_child(fill_row)
+
     return box
 
 func build_ant_controls() -> VBoxContainer:
@@ -377,11 +389,19 @@ func build_gol_controls() -> VBoxContainer:
     var chain_label: Label = Label.new()
     chain_label.text = "Every N ant steps"
     chain_row.add_child(chain_label)
+    var chain_toggle: CheckBox = CheckBox.new()
+    chain_toggle.button_pressed = gol_trigger_from_ants
+    chain_toggle.toggled.connect(func(v: bool) -> void:
+        gol_trigger_from_ants = v
+        gol_every_spin.editable = v
+    )
+    chain_row.add_child(chain_toggle)
     gol_every_spin.min_value = 1
     gol_every_spin.max_value = 10000
     gol_every_spin.step = 1
     gol_every_spin.value = gol_every_ant_steps
     gol_every_spin.value_changed.connect(func(v: float) -> void: gol_every_ant_steps = int(v))
+    gol_every_spin.editable = gol_trigger_from_ants
     chain_row.add_child(gol_every_spin)
     box.add_child(chain_row)
 
@@ -525,8 +545,19 @@ func process_game_of_life(delta: float) -> bool:
         stepped = true
     return stepped
 
-func step_wolfram() -> void:
-    var source_row: int = (wolfram_row - 1 + grid_size.y) % grid_size.y
+func step_wolfram(allow_wrap: bool = true) -> void:
+    if grid_size.y <= 0:
+        return
+    if allow_wrap and grid_size.y > 0:
+        wolfram_row = wolfram_row % grid_size.y
+    if wolfram_row >= grid_size.y and not allow_wrap:
+        return
+
+    var source_row: int = 0
+    if wolfram_row <= 0:
+        source_row = grid_size.y - 1 if allow_wrap else 0
+    else:
+        source_row = wolfram_row - 1
     for x in range(grid_size.x):
         var left: int = sample_cell(Vector2i(x - 1, source_row))
         var center: int = sample_cell(Vector2i(x, source_row))
@@ -534,7 +565,18 @@ func step_wolfram() -> void:
         var key: int = (left << 2) | (center << 1) | right
         var state: int = (wolfram_rule >> key) & 1
         set_cell(Vector2i(x, wolfram_row), state)
-    wolfram_row = (wolfram_row + 1) % grid_size.y
+    wolfram_row = (wolfram_row + 1) % grid_size.y if allow_wrap else wolfram_row + 1
+
+func fill_wolfram_screen() -> void:
+    if grid_size.y <= 0:
+        return
+    if wolfram_row <= 0:
+        wolfram_row = 1
+    var remaining: int = max(0, grid_size.y - wolfram_row)
+    for _i in range(remaining):
+        step_wolfram(false)
+    wolfram_enabled = false
+    wolfram_accumulator = 0.0
 
 func step_ants() -> void:
     var remove_indices: Array[int] = []
@@ -575,7 +617,7 @@ func step_ants() -> void:
         ant_colors.remove_at(idx)
 
     ant_step_counter += 1
-    if gol_every_ant_steps > 0 and ant_step_counter % gol_every_ant_steps == 0:
+    if gol_trigger_from_ants and gol_every_ant_steps > 0 and ant_step_counter % gol_every_ant_steps == 0:
         step_game_of_life()
 
 func step_game_of_life() -> void:

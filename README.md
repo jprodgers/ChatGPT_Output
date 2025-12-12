@@ -16,8 +16,9 @@ The control panel lives on the left to maximize horizontal space for the grid an
 - **Playback**
   - Global Play/Pause toggle plus a single-step button to advance every enabled automaton once while paused.
 - **Wolfram**
-  - Rule selector (0–255), per-second rate (floats allowed), auto toggle (off by default), and manual step.
+  - Rule selector (0–255, defaults to 30), per-second rate (floats allowed), auto toggle (off by default), and manual step.
   - One-click top-row seeds: random fill based on the current seed percentage or a single centered dot, both resetting the Wolfram sweep to the second row.
+  - “Fill screen” button to run the chosen Wolfram rule all the way to the bottom instantly (even while paused) and stop.
   - Sweeps from the top row downward, wrapping when it reaches the bottom.
 - **Langton's Ant**
   - Spawn any number of ants with a chosen color; supports edge behaviors above.
@@ -25,7 +26,7 @@ The control panel lives on the left to maximize horizontal space for the grid an
   - Per-second rate, auto toggle (off by default), and manual step.
 - **Game of Life**
   - Per-second rate (float), auto toggle (off by default), and manual step.
-  - Can chain to ants: set “Every N ant steps” to fire a GoL sweep after that many ant updates (e.g., 100).
+  - Optional ant chaining: check the box next to “Every N ant steps” to fire a GoL sweep after that many ant updates (e.g., 100); uncheck to run GoL independently.
 
 ## Suggested Workflow
 1. Set a Wolfram rule and speed to seed the grid from the top.
