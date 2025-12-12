@@ -15,7 +15,21 @@ const MEMORY_BASE_COST: float = 60.0
 const OPS_PER_PROCESSOR: float = 0.35
 const OPS_MEMORY_FACTOR: float = 0.15
 const BASE_OPS_CAPACITY: int = 50
-const UPGRADE_KEYS: Array[String] = ["analytics", "efficiency"]
+const UPGRADE_KEYS: Array[String] = [
+    "analytics_1",
+    "analytics_2",
+    "analytics_3",
+    "efficiency_1",
+    "efficiency_2",
+    "efficiency_3",
+    "bulk_wire_1",
+    "bulk_wire_2",
+    "marketing_insight_1",
+    "marketing_insight_2",
+    "price_optimizer",
+    "processor_boost",
+    "memory_boost"
+]
 
 class Upgrade:
     var key: String
@@ -27,7 +41,7 @@ class Upgrade:
 
 var total_paperclips: int = 0
 var unsold_inventory: int = 0
-var funds: float = 100.0
+var funds: float = 0.0
 var wire: int = 1000
 var price: float = 0.25
 var marketing_level: int = 0
@@ -38,6 +52,7 @@ var autoclipper_cost: float = AUTOCLIPPER_BASE_COST
 var production_accumulator: float = 0.0
 var sales_accumulator: float = 0.0
 var demand_buffer: float = 0.0
+var smoothed_demand: float = 0.0
 
 var processors: int = 1
 var memory_banks: int = 1
@@ -48,6 +63,11 @@ var memory_cost: float = MEMORY_BASE_COST
 
 var demand_bonus: float = 0.0
 var clipper_rate_bonus: float = 0.0
+var wire_per_purchase: int = WIRE_BUNDLE
+var marketing_discount: float = 0.0
+var ops_rate_bonus: float = 0.0
+var ops_capacity_bonus: int = 0
+var price_sensitivity: float = 1.0
 
 var labels: Dictionary[String, Label] = {}
 var buttons: Dictionary[String, Button] = {}
@@ -57,6 +77,8 @@ var upgrades: Array[Upgrade] = []
 func _ready() -> void:
     build_ui()
     setup_upgrades()
+    update_ops_capacity()
+    smoothed_demand = calculate_target_demand()
     refresh_ui()
 
 func build_ui() -> void:
@@ -255,23 +277,36 @@ func add_simple_row(container: VBoxContainer, title: String, key: String) -> voi
     row.add_child(value)
 
 func setup_upgrades() -> void:
-    var analytics: Upgrade = Upgrade.new()
-    analytics.key = "analytics"
-    analytics.label = "Sales analytics"
-    analytics.description = "+0.25 base demand (costs ops)"
-    analytics.ops_cost = 200
-    analytics.effect = func():
-        demand_bonus += 0.25
-    upgrades.append(analytics)
+    upgrades.append_array([
+        create_upgrade("analytics_1", "Sales analytics I", "+0.15 base demand", 120, func(): demand_bonus += 0.15),
+        create_upgrade("analytics_2", "Sales analytics II", "+0.20 base demand", 220, func(): demand_bonus += 0.2),
+        create_upgrade("analytics_3", "Sales analytics III", "+0.25 base demand", 350, func(): demand_bonus += 0.25),
+        create_upgrade("efficiency_1", "Clipper efficiency I", "+10% AutoClipper speed", 180, func(): clipper_rate_bonus += 0.1),
+        create_upgrade("efficiency_2", "Clipper efficiency II", "+12% AutoClipper speed", 260, func(): clipper_rate_bonus += 0.12),
+        create_upgrade("efficiency_3", "Clipper efficiency III", "+15% AutoClipper speed", 360, func(): clipper_rate_bonus += 0.15),
+        create_upgrade("bulk_wire_1", "Bulk wire spool I", "+250 wire per purchase", 150, func(): wire_per_purchase += 250),
+        create_upgrade("bulk_wire_2", "Bulk wire spool II", "+500 wire per purchase", 240, func(): wire_per_purchase += 500),
+        create_upgrade("marketing_insight_1", "Marketing insight I", "-10% marketing costs", 200, func(): marketing_discount += 0.1),
+        create_upgrade("marketing_insight_2", "Marketing insight II", "-12% marketing costs", 320, func(): marketing_discount += 0.12),
+        create_upgrade("price_optimizer", "Price optimizer", "Price shifts reduce demand less", 280, func():
+            price_sensitivity = max(0.6, price_sensitivity - 0.15)
+            demand_bonus += 0.05
+        ),
+        create_upgrade("processor_boost", "Processor boost", "+15% ops/sec", 240, func(): ops_rate_bonus += 0.15),
+        create_upgrade("memory_boost", "Memory boost", "+20 ops capacity", 210, func():
+            ops_capacity_bonus += 20
+            update_ops_capacity()
+        )
+    ])
 
-    var efficiency: Upgrade = Upgrade.new()
-    efficiency.key = "efficiency"
-    efficiency.label = "Clipper efficiency"
-    efficiency.description = "+10% AutoClipper speed"
-    efficiency.ops_cost = 250
-    efficiency.effect = func():
-        clipper_rate_bonus += 0.1
-    upgrades.append(efficiency)
+func create_upgrade(key: String, label: String, description: String, ops_cost: int, effect: Callable) -> Upgrade:
+    var upgrade: Upgrade = Upgrade.new()
+    upgrade.key = key
+    upgrade.label = label
+    upgrade.description = description
+    upgrade.ops_cost = ops_cost
+    upgrade.effect = effect
+    return upgrade
 
 func _process(delta: float) -> void:
     production_accumulator += delta * float(autoclippers) * AUTOCLIPPER_RATE * (1.0 + clipper_rate_bonus)
@@ -281,6 +316,7 @@ func _process(delta: float) -> void:
             break
         production_accumulator -= 1.0
 
+    update_demand(delta)
     sales_accumulator += delta
     if sales_accumulator >= 0.5:
         process_sales(sales_accumulator)
@@ -301,8 +337,7 @@ func make_clip() -> bool:
 func process_sales(elapsed: float) -> void:
     if unsold_inventory <= 0:
         return
-    var demand_rate: float = get_demand_per_second()
-    demand_buffer += demand_rate * elapsed
+    demand_buffer += smoothed_demand * elapsed
     var potential_sales: int = int(floor(demand_buffer))
     demand_buffer -= float(potential_sales)
     var actual_sales: int = min(unsold_inventory, potential_sales)
@@ -311,11 +346,16 @@ func process_sales(elapsed: float) -> void:
     unsold_inventory -= actual_sales
     funds += float(actual_sales) * price
 
-func get_demand_per_second() -> float:
-    var base_demand: float = 0.7 + float(marketing_level) * 0.35 + demand_bonus
-    var price_factor: float = clamp(1.6 - price * 0.9, 0.0, 2.0)
-    var inventory_pressure: float = clamp(1.0 - float(unsold_inventory) / 750.0, 0.2, 1.0)
-    return base_demand * price_factor * inventory_pressure
+func calculate_target_demand() -> float:
+    var base_demand: float = 0.55 + float(marketing_level) * 0.3 + demand_bonus
+    var price_factor: float = clamp(1.4 - price * 0.7 * price_sensitivity, 0.15, 1.8)
+    var inventory_pressure: float = clamp(1.0 - float(unsold_inventory) / 900.0, 0.3, 1.0)
+    return max(0.05, base_demand * price_factor * inventory_pressure)
+
+func update_demand(delta: float) -> void:
+    var target: float = calculate_target_demand()
+    var smoothing_factor: float = clamp(delta * 0.55, 0.0, 1.0)
+    smoothed_demand = lerpf(smoothed_demand, target, smoothing_factor)
 
 func adjust_price(amount: float) -> void:
     price = clamp(price + amount, MIN_PRICE, MAX_PRICE)
@@ -328,12 +368,13 @@ func _on_buy_wire_pressed() -> void:
     if funds < WIRE_BASE_COST:
         return
     funds -= WIRE_BASE_COST
-    wire += WIRE_BUNDLE
+    wire += wire_per_purchase
 
 func _on_buy_marketing_pressed() -> void:
-    if funds < marketing_cost:
+    var cost: float = get_effective_marketing_cost()
+    if funds < cost:
         return
-    funds -= marketing_cost
+    funds -= cost
     marketing_level += 1
     marketing_cost = round(marketing_cost * 1.2 * 100.0) / 100.0
 
@@ -356,15 +397,23 @@ func _on_buy_memory_pressed() -> void:
         return
     funds -= memory_cost
     memory_banks += 1
-    ops_capacity = BASE_OPS_CAPACITY + memory_banks * 150
+    update_ops_capacity()
     memory_cost = round(memory_cost * 1.18 * 100.0) / 100.0
 
 func format_currency(value: float) -> String:
     return "$%.2f" % value
 
+func get_effective_marketing_cost() -> float:
+    return round(marketing_cost * (1.0 - marketing_discount) * 100.0) / 100.0
+
 func accumulate_operations(delta: float) -> void:
     var ops_rate: float = float(processors) * (OPS_PER_PROCESSOR + float(memory_banks) * OPS_MEMORY_FACTOR)
+    ops_rate *= 1.0 + ops_rate_bonus
     operations = min(operations + ops_rate * delta, float(ops_capacity))
+
+func update_ops_capacity() -> void:
+    ops_capacity = BASE_OPS_CAPACITY + ops_capacity_bonus + memory_banks * 150
+    operations = min(operations, float(ops_capacity))
 
 func _on_upgrade_pressed(key: String) -> void:
     var upgrade: Upgrade = get_upgrade(key)
@@ -377,7 +426,7 @@ func _on_upgrade_pressed(key: String) -> void:
     upgrade.effect.call()
 
 func get_upgrade(key: String) -> Upgrade:
-    for upgrade in upgrades:
+    for upgrade: Upgrade in upgrades:
         if upgrade.key == key:
             return upgrade
     push_error("Unknown upgrade key: %s" % key)
@@ -397,17 +446,17 @@ func refresh_ui() -> void:
     labels["marketing"].text = str(marketing_level)
     labels["autoclippers"].text = str(autoclippers)
 
-    labels["demand"].text = "Demand: %.2f clips / sec" % get_demand_per_second()
+    labels["demand"].text = "Demand: %.2f clips / sec" % smoothed_demand
     labels["processors"].text = str(processors)
     labels["memory"].text = str(memory_banks)
     labels["ops"].text = "%.0f / %d ops" % [operations, ops_capacity]
 
     buttons["make"].disabled = wire <= 0
-    buttons["wire"].text = "Buy wire (" + format_currency(WIRE_BASE_COST) + ")"
+    buttons["wire"].text = "Buy wire (+" + str(wire_per_purchase) + "m) (" + format_currency(WIRE_BASE_COST) + ")"
     buttons["wire"].disabled = funds < WIRE_BASE_COST
 
-    buttons["marketing"].text = "Launch marketing (" + format_currency(marketing_cost) + ")"
-    buttons["marketing"].disabled = funds < marketing_cost
+    buttons["marketing"].text = "Launch marketing (" + format_currency(get_effective_marketing_cost()) + ")"
+    buttons["marketing"].disabled = funds < get_effective_marketing_cost()
 
     buttons["autoclipper"].text = "Buy AutoClipper (" + format_currency(autoclipper_cost) + ")"
     buttons["autoclipper"].disabled = funds < autoclipper_cost or wire <= 0
@@ -417,7 +466,7 @@ func refresh_ui() -> void:
     buttons["memory"].text = "Buy memory (" + format_currency(memory_cost) + ")"
     buttons["memory"].disabled = funds < memory_cost
 
-    for upgrade in upgrades:
+    for upgrade: Upgrade in upgrades:
         var button: Button = upgrade_buttons[upgrade.key]
         button.disabled = upgrade.applied or operations < float(upgrade.ops_cost)
         var label: String = "%s - %s" % [upgrade.label, upgrade.description]
