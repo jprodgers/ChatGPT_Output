@@ -4,10 +4,11 @@ This project builds a fullscreen-friendly cellular automata playground designed 
 
 ## Running
 Open the project in Godot 4.5.1 and play the **Main** scene. The UI is created at runtime, so no additional setup is required.
+The control panel lives on the left to maximize horizontal space for the grid and can be collapsed section-by-section.
 
 ## Controls & Features
 - **Grid**
-  - Cell size slider (1–128 px) keeps the grid aligned to the viewport; resizing or changing cell size rebuilds the grid.
+  - Cell size slider (1–128 px) keeps the grid aligned to the viewport area beside the sidebar; resizing or changing cell size rebuilds the grid.
   - Edge behavior: Wrap (default), Bounce, or Fall off.
   - Alive/dead color pickers (default white/black).
   - Random seeding with adjustable coverage percentage and a clear button.
@@ -15,6 +16,7 @@ Open the project in Godot 4.5.1 and play the **Main** scene. The UI is created a
   - Global Play/Pause toggle plus a single-step button to advance every enabled automaton once while paused.
 - **Wolfram**
   - Rule selector (0–255), per-second rate (floats allowed), auto toggle, and manual step.
+  - One-click top-row seeds: random fill based on the current seed percentage or a single centered dot, both resetting the Wolfram sweep to the second row.
   - Sweeps from the top row downward, wrapping when it reaches the bottom.
 - **Langton's Ant**
   - Spawn any number of ants with a chosen color; supports edge behaviors above.

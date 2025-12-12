@@ -45,6 +45,7 @@ var step_requested: bool = false
 
 @onready var grid_view: TextureRect = TextureRect.new()
 @onready var info_label: Label = Label.new()
+@onready var view_container: Panel = Panel.new()
 
 @onready var wolfram_rate_spin: SpinBox = SpinBox.new()
 @onready var ant_rate_spin: SpinBox = SpinBox.new()
@@ -67,20 +68,30 @@ func _ready() -> void:
     render_grid()
 
 func build_ui() -> void:
-    var root := VBoxContainer.new()
+    var root := HBoxContainer.new()
     root.set_anchors_preset(Control.PRESET_FULL_RECT)
-    root.add_theme_constant_override("separation", 10)
+    root.add_theme_constant_override("separation", 8)
     add_child(root)
+
+    var sidebar := PanelContainer.new()
+    sidebar.custom_minimum_size = Vector2(260, 0)
+    sidebar.size_flags_horizontal = Control.SIZE_FILL
+    sidebar.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    root.add_child(sidebar)
+
+    var sidebar_layout := VBoxContainer.new()
+    sidebar_layout.add_theme_constant_override("separation", 10)
+    sidebar.add_child(sidebar_layout)
 
     var title := Label.new()
     title.text = "Shader-friendly Cellular Automata"
-    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    title.add_theme_font_size_override("font_size", 20)
-    root.add_child(title)
+    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+    title.add_theme_font_size_override("font_size", 18)
+    sidebar_layout.add_child(title)
 
     var info_row := HBoxContainer.new()
     info_row.add_theme_constant_override("separation", 6)
-    root.add_child(info_row)
+    sidebar_layout.add_child(info_row)
 
     info_label.text = "Grid ready"
     info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
@@ -101,17 +112,21 @@ func build_ui() -> void:
     )
     info_row.add_child(step_button)
 
-    var controls := HBoxContainer.new()
-    controls.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    controls.add_theme_constant_override("separation", 12)
-    root.add_child(controls)
+    var scroll := ScrollContainer.new()
+    scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    sidebar_layout.add_child(scroll)
 
-    controls.add_child(build_grid_controls())
-    controls.add_child(build_wolfram_controls())
-    controls.add_child(build_ant_controls())
-    controls.add_child(build_gol_controls())
+    var controls_column := VBoxContainer.new()
+    controls_column.add_theme_constant_override("separation", 8)
+    scroll.add_child(controls_column)
 
-    var view_container := Panel.new()
+    controls_column.add_child(build_collapsible_section("Grid", build_grid_controls()))
+    controls_column.add_child(build_collapsible_section("Wolfram", build_wolfram_controls()))
+    controls_column.add_child(build_collapsible_section("Langton's Ant", build_ant_controls()))
+    controls_column.add_child(build_collapsible_section("Game of Life", build_gol_controls()))
+
+    view_container = Panel.new()
     view_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
     view_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     view_container.custom_minimum_size = Vector2(200, 200)
@@ -127,13 +142,31 @@ func build_ui() -> void:
 
     ui_ready = true
 
+func build_collapsible_section(title: String, content: Control) -> VBoxContainer:
+    var wrapper := VBoxContainer.new()
+    wrapper.add_theme_constant_override("separation", 4)
+
+    var header := Button.new()
+    header.text = title
+    header.toggle_mode = true
+    header.button_pressed = true
+    header.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+    wrapper.add_child(header)
+
+    var holder := VBoxContainer.new()
+    holder.add_theme_constant_override("separation", 6)
+    holder.add_child(content)
+    wrapper.add_child(holder)
+
+    header.toggled.connect(func(pressed):
+        holder.visible = pressed
+    )
+
+    return wrapper
+
 func build_grid_controls() -> VBoxContainer:
     var box := VBoxContainer.new()
     box.add_theme_constant_override("separation", 6)
-    var label := Label.new()
-    label.text = "Grid"
-    label.add_theme_font_size_override("font_size", 16)
-    box.add_child(label)
 
     var size_row := HBoxContainer.new()
     var size_label := Label.new()
@@ -204,10 +237,6 @@ func build_grid_controls() -> VBoxContainer:
 func build_wolfram_controls() -> VBoxContainer:
     var box := VBoxContainer.new()
     box.add_theme_constant_override("separation", 6)
-    var label := Label.new()
-    label.text = "Wolfram"
-    label.add_theme_font_size_override("font_size", 16)
-    box.add_child(label)
 
     var rule_row := HBoxContainer.new()
     var rule_label := Label.new()
@@ -245,15 +274,22 @@ func build_wolfram_controls() -> VBoxContainer:
     buttons.add_child(step)
     box.add_child(buttons)
 
+    var seed_row := HBoxContainer.new()
+    var random_seed := Button.new()
+    random_seed.text = "Seed top row"
+    random_seed.pressed.connect(func(): seed_wolfram_row(true); render_grid())
+    seed_row.add_child(random_seed)
+    var center_seed := Button.new()
+    center_seed.text = "Center dot"
+    center_seed.pressed.connect(func(): seed_wolfram_row(false); render_grid())
+    seed_row.add_child(center_seed)
+    box.add_child(seed_row)
+
     return box
 
 func build_ant_controls() -> VBoxContainer:
     var box := VBoxContainer.new()
     box.add_theme_constant_override("separation", 6)
-    var label := Label.new()
-    label.text = "Langton's Ant"
-    label.add_theme_font_size_override("font_size", 16)
-    box.add_child(label)
 
     var count_row := HBoxContainer.new()
     var count_label := Label.new()
@@ -301,10 +337,6 @@ func build_ant_controls() -> VBoxContainer:
 func build_gol_controls() -> VBoxContainer:
     var box := VBoxContainer.new()
     box.add_theme_constant_override("separation", 6)
-    var label := Label.new()
-    label.text = "Game of Life"
-    label.add_theme_font_size_override("font_size", 16)
-    box.add_child(label)
 
     var rate_row := HBoxContainer.new()
     var rate_label := Label.new()
@@ -348,7 +380,11 @@ func build_gol_controls() -> VBoxContainer:
 func update_grid_size() -> void:
     if not ui_ready:
         return
-    var viewport_size: Vector2i = get_viewport_rect().size
+    var viewport_size: Vector2i = view_container.get_rect().size if view_container != null else get_viewport_rect().size
+    if viewport_size.x <= 0 or viewport_size.y <= 0:
+        viewport_size = get_viewport_rect().size
+    if viewport_size.x <= 0 or viewport_size.y <= 0:
+        return
     var new_size := Vector2i(max(1, viewport_size.x / cell_size), max(1, viewport_size.y / cell_size))
     var size_changed := new_size != grid_size or grid.size() != new_size.x * new_size.y
     grid_size = new_size
@@ -371,6 +407,20 @@ func random_fill_grid() -> void:
             grid[i] = 1
         else:
             grid[i] = 0
+    wolfram_row = 0
+
+func seed_wolfram_row(randomize: bool) -> void:
+    var rng := RandomNumberGenerator.new()
+    rng.randomize()
+    grid.fill(0)
+    var top_row := 0
+    for x in range(grid_size.x):
+        var idx := top_row * grid_size.x + x
+        grid[idx] = 1 if (randomize and rng.randf() < seed_fill) else 0
+    if not randomize and grid_size.x > 0:
+        var center := grid_size.x / 2
+        grid[top_row * grid_size.x + center] = 1
+    wolfram_row = 1
 
 func spawn_ants(count: int, color: Color) -> void:
     var rng := RandomNumberGenerator.new()
