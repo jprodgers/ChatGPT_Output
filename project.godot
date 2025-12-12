@@ -1,0 +1,12 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+
+config_version=5
+
+[application]
+config/name="Universal Paperclips"
+run/main_scene="res://scenes/Main.tscn"
+
+[rendering]
+renderer/rendering_method="forward_plus"
