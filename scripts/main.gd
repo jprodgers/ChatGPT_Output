@@ -121,6 +121,7 @@ func build_ui() -> void:
     grid_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     grid_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     grid_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    grid_view.set_anchors_preset(Control.PRESET_FULL_RECT)
     grid_view.modulate = Color.WHITE
     view_container.add_child(grid_view)
 
