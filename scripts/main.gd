@@ -150,7 +150,7 @@ func build_collapsible_section(title: String, content: Control) -> VBoxContainer
     header.text = title
     header.toggle_mode = true
     header.button_pressed = true
-    header.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+    header.text_alignment = HORIZONTAL_ALIGNMENT_LEFT
     wrapper.add_child(header)
 
     var holder := VBoxContainer.new()
