@@ -634,20 +634,24 @@ func _process(delta: float) -> void:
     if is_paused and not step_requested:
         return
 
-    if not step_requested and global_rate > 0.0:
+    var tick_deltas: Array[float] = []
+    if step_requested:
+        tick_deltas.append(0.0)
+    elif global_rate > 0.0:
         global_accumulator += delta
         var global_interval := 1.0 / global_rate
-        if global_accumulator < global_interval:
-            return
-        global_accumulator -= global_interval
+        while global_accumulator >= global_interval:
+            tick_deltas.append(global_interval)
+            global_accumulator -= global_interval
     else:
-        global_accumulator = 0.0
+        tick_deltas.append(delta)
 
     var updated := false
 
-    updated = process_wolfram(delta) or updated
-    updated = process_ants(delta) or updated
-    updated = process_game_of_life(delta) or updated
+    for tick_delta in tick_deltas:
+        updated = process_wolfram(tick_delta) or updated
+        updated = process_ants(tick_delta) or updated
+        updated = process_game_of_life(tick_delta) or updated
 
     if step_requested:
         if wolfram_enabled:
