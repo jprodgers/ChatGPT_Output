@@ -22,6 +22,7 @@ var autoclipper_cost := AUTOCLIPPER_BASE_COST
 
 var production_accumulator := 0.0
 var sales_accumulator := 0.0
+var demand_buffer := 0.0
 
 var labels := {}
 var buttons := {}
@@ -165,18 +166,20 @@ func make_clip() -> bool:
 func process_sales(elapsed: float) -> void:
     if unsold_inventory <= 0:
         return
-    var demand_rate := get_demand_per_second()
-    var potential_sales := int(floor(demand_rate * elapsed))
-    var actual_sales := min(unsold_inventory, potential_sales)
+    var demand_rate: float = get_demand_per_second()
+    demand_buffer += demand_rate * elapsed
+    var potential_sales: int = int(floor(demand_buffer))
+    demand_buffer -= float(potential_sales)
+    var actual_sales: int = min(unsold_inventory, potential_sales)
     if actual_sales <= 0:
         return
     unsold_inventory -= actual_sales
     funds += float(actual_sales) * price
 
 func get_demand_per_second() -> float:
-    var base_demand := 0.7 + float(marketing_level) * 0.35
-    var price_factor := clamp(1.35 - price * 0.9, 0.0, 2.0)
-    var inventory_pressure := clamp(unsold_inventory / 500.0, 0.1, 1.0)
+    var base_demand: float = 0.7 + float(marketing_level) * 0.35
+    var price_factor: float = clamp(1.35 - price * 0.9, 0.0, 2.0)
+    var inventory_pressure: float = clamp(unsold_inventory / 500.0, 0.25, 1.0)
     return (base_demand * price_factor + 0.2) * inventory_pressure
 
 func adjust_price(amount: float) -> void:
