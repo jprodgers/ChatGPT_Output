@@ -39,6 +39,8 @@ class Upgrade:
     var description: String
     var ops_cost: int
     var effect: Callable
+    var unlock_at_clips: int
+    var prerequisite: String
     var applied: bool = false
 
 var total_paperclips: int = 0
@@ -76,7 +78,6 @@ var labels: Dictionary[String, Label] = {}
 var buttons: Dictionary[String, Button] = {}
 var upgrade_buttons: Dictionary[String, Button] = {}
 var upgrades: Array[Upgrade] = []
-var upgrade_unlocks: Dictionary[String, int] = {}
 
 var computing_panel: VBoxContainer
 
@@ -285,35 +286,20 @@ func add_simple_row(container: VBoxContainer, title: String, key: String) -> voi
     row.add_child(value)
 
 func setup_upgrades() -> void:
-    upgrade_unlocks = {
-        "analytics_1": 0,
-        "analytics_2": 500,
-        "analytics_3": 1200,
-        "efficiency_1": 150,
-        "efficiency_2": 400,
-        "efficiency_3": 800,
-        "bulk_wire_1": 50,
-        "bulk_wire_2": 400,
-        "marketing_insight_1": 250,
-        "marketing_insight_2": 900,
-        "price_optimizer": 1200,
-        "processor_boost": 2500,
-        "memory_boost": 2500
-    }
     upgrades.append_array([
-        create_upgrade("analytics_1", "Sales analytics I", "+0.15 base demand", 120, func(): demand_bonus += 0.15),
-        create_upgrade("analytics_2", "Sales analytics II", "+0.20 base demand", 220, func(): demand_bonus += 0.2),
-        create_upgrade("analytics_3", "Sales analytics III", "+0.25 base demand", 350, func(): demand_bonus += 0.25),
-        create_upgrade("efficiency_1", "Clipper efficiency I", "+10% AutoClipper speed", 180, func(): clipper_rate_bonus += 0.1),
-        create_upgrade("efficiency_2", "Clipper efficiency II", "+12% AutoClipper speed", 260, func(): clipper_rate_bonus += 0.12),
-        create_upgrade("efficiency_3", "Clipper efficiency III", "+15% AutoClipper speed", 360, func(): clipper_rate_bonus += 0.15),
-        create_upgrade("bulk_wire_1", "Bulk wire spool I", "+250 wire per purchase", 150, func(): wire_per_purchase += 250),
-        create_upgrade("bulk_wire_2", "Bulk wire spool II", "+500 wire per purchase", 240, func(): wire_per_purchase += 500),
-        create_upgrade("marketing_insight_1", "Marketing insight I", "-10% marketing costs", 200, func(): marketing_discount += 0.1),
-        create_upgrade("marketing_insight_2", "Marketing insight II", "-12% marketing costs", 320, func(): marketing_discount += 0.12),
-        create_upgrade("price_optimizer", "Price optimizer", "Price shifts reduce demand less", 280, Callable(self, "apply_price_optimizer")),
-        create_upgrade("processor_boost", "Processor boost", "+15% ops/sec", 240, func(): ops_rate_bonus += 0.15),
-        create_upgrade("memory_boost", "Memory boost", "+20 ops capacity", 210, Callable(self, "apply_memory_boost"))
+        create_upgrade("analytics_1", "Sales analytics I", "+0.15 base demand", 120, 0, "", func(): demand_bonus += 0.15),
+        create_upgrade("analytics_2", "Sales analytics II", "+0.20 base demand", 220, 8000, "analytics_1", func(): demand_bonus += 0.2),
+        create_upgrade("analytics_3", "Sales analytics III", "+0.25 base demand", 320, 20000, "analytics_2", func(): demand_bonus += 0.25),
+        create_upgrade("efficiency_1", "Clipper efficiency I", "+10% AutoClipper speed", 180, 600, "", func(): clipper_rate_bonus += 0.1),
+        create_upgrade("efficiency_2", "Clipper efficiency II", "+12% AutoClipper speed", 260, 6000, "efficiency_1", func(): clipper_rate_bonus += 0.12),
+        create_upgrade("efficiency_3", "Clipper efficiency III", "+15% AutoClipper speed", 360, 16000, "efficiency_2", func(): clipper_rate_bonus += 0.15),
+        create_upgrade("bulk_wire_1", "Bulk wire spool I", "+250 wire per purchase", 150, 500, "", func(): wire_per_purchase += 250),
+        create_upgrade("bulk_wire_2", "Bulk wire spool II", "+500 wire per purchase", 240, 7500, "bulk_wire_1", func(): wire_per_purchase += 500),
+        create_upgrade("marketing_insight_1", "Marketing insight I", "-10% marketing costs", 200, 1200, "", func(): marketing_discount += 0.1),
+        create_upgrade("marketing_insight_2", "Marketing insight II", "-12% marketing costs", 320, 9500, "marketing_insight_1", func(): marketing_discount += 0.12),
+        create_upgrade("price_optimizer", "Price optimizer", "Price shifts reduce demand less", 280, 15000, "marketing_insight_2", Callable(self, "apply_price_optimizer")),
+        create_upgrade("processor_boost", "Processor boost", "+15% ops/sec", 240, 6000, "", func(): ops_rate_bonus += 0.15),
+        create_upgrade("memory_boost", "Memory boost", "+20 ops capacity", 210, 6000, "", Callable(self, "apply_memory_boost"))
     ])
 
 func apply_price_optimizer() -> void:
@@ -324,13 +310,15 @@ func apply_memory_boost() -> void:
     ops_capacity_bonus += 20
     update_ops_capacity()
 
-func create_upgrade(key: String, label: String, description: String, ops_cost: int, effect: Callable) -> Upgrade:
+func create_upgrade(key: String, label: String, description: String, ops_cost: int, unlock_at_clips: int, prerequisite: String, effect: Callable) -> Upgrade:
     var upgrade: Upgrade = Upgrade.new()
     upgrade.key = key
     upgrade.label = label
     upgrade.description = description
     upgrade.ops_cost = ops_cost
     upgrade.effect = effect
+    upgrade.unlock_at_clips = unlock_at_clips
+    upgrade.prerequisite = prerequisite
     return upgrade
 
 func _process(delta: float) -> void:
@@ -373,15 +361,17 @@ func process_sales(elapsed: float) -> void:
     funds += float(actual_sales) * price
 
 func calculate_target_demand() -> float:
-    var base_demand: float = 0.6 + float(marketing_level) * 0.28 + demand_bonus
-    var price_factor: float = clamp(1.4 - price * 0.7 * price_sensitivity, 0.25, 1.8)
-    var inventory_pressure: float = clamp(1.0 - float(unsold_inventory) / 8000.0, 0.75, 1.0)
-    var saturation_pressure: float = 1.0 - min(float(total_sold) / 500000.0, 0.25)
-    return max(0.1, base_demand * price_factor * inventory_pressure * saturation_pressure)
+    var base_demand: float = 0.8 + float(marketing_level) * 0.3 + demand_bonus
+    var price_factor: float = clamp(1.5 - price * 0.45 * price_sensitivity, 0.65, 1.9)
+    var safe_inventory: float = max(float(unsold_inventory) - 500.0, 0.0)
+    var inventory_pressure: float = clamp(1.0 - safe_inventory / 25000.0, 0.9, 1.0)
+    var sold_after_threshold: float = max(float(total_sold) - 5000.0, 0.0)
+    var saturation_pressure: float = 1.0 - min(sold_after_threshold / 1500000.0, 0.25)
+    return max(0.15, base_demand * price_factor * inventory_pressure * saturation_pressure)
 
 func update_demand(delta: float) -> void:
     var target: float = calculate_target_demand()
-    var smoothing_factor: float = clamp(delta * 0.35, 0.0, 1.0)
+    var smoothing_factor: float = clamp(delta * 0.12, 0.0, 0.35)
     smoothed_demand = lerpf(smoothed_demand, target, smoothing_factor)
 
 func adjust_price(amount: float) -> void:
@@ -459,6 +449,15 @@ func get_upgrade(key: String) -> Upgrade:
     push_error("Unknown upgrade key: %s" % key)
     return upgrades[0]
 
+func is_upgrade_unlocked(upgrade: Upgrade) -> bool:
+    if total_paperclips < upgrade.unlock_at_clips:
+        return false
+    if upgrade.prerequisite != "":
+        var prerequisite_upgrade: Upgrade = get_upgrade(upgrade.prerequisite)
+        if not prerequisite_upgrade.applied:
+            return false
+    return true
+
 func refresh_ui() -> void:
     labels["total"].text = str(total_paperclips)
     labels["inventory"].text = str(unsold_inventory)
@@ -502,7 +501,7 @@ func refresh_ui() -> void:
 
     for upgrade: Upgrade in upgrades:
         var button: Button = upgrade_buttons[upgrade.key]
-        var unlocked: bool = total_paperclips >= upgrade_unlocks.get(upgrade.key, 0)
+        var unlocked: bool = is_upgrade_unlocked(upgrade)
         button.visible = unlocked
         button.disabled = upgrade.applied or (operations < float(upgrade.ops_cost)) or not unlocked
         var label: String = "%s - %s" % [upgrade.label, upgrade.description]
