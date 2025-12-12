@@ -15,6 +15,8 @@ const MEMORY_BASE_COST: float = 60.0
 const OPS_PER_PROCESSOR: float = 0.35
 const OPS_MEMORY_FACTOR: float = 0.15
 const BASE_OPS_CAPACITY: int = 50
+const AUTOCLIPPER_UNLOCK: int = 100
+const COMPUTING_UNLOCK: int = 2000
 const UPGRADE_KEYS: Array[String] = [
     "analytics_1",
     "analytics_2",
@@ -40,6 +42,7 @@ class Upgrade:
     var applied: bool = false
 
 var total_paperclips: int = 0
+var total_sold: int = 0
 var unsold_inventory: int = 0
 var funds: float = 0.0
 var wire: int = 1000
@@ -73,6 +76,9 @@ var labels: Dictionary[String, Label] = {}
 var buttons: Dictionary[String, Button] = {}
 var upgrade_buttons: Dictionary[String, Button] = {}
 var upgrades: Array[Upgrade] = []
+var upgrade_unlocks: Dictionary[String, int] = {}
+
+var computing_panel: VBoxContainer
 
 func _ready() -> void:
     build_ui()
@@ -139,6 +145,7 @@ func build_ui() -> void:
 
     var auto_button: Button = Button.new()
     auto_button.pressed.connect(_on_buy_autoclipper_pressed)
+    auto_button.visible = false
     buttons["autoclipper"] = auto_button
     make_row.add_child(auto_button)
 
@@ -186,8 +193,9 @@ func build_ui() -> void:
     labels["demand"] = demand_label
     marketing_row.add_child(demand_label)
 
-    var computing_panel: VBoxContainer = VBoxContainer.new()
+    computing_panel = VBoxContainer.new()
     computing_panel.add_theme_constant_override("separation", 6)
+    computing_panel.visible = false
     left_column.add_child(computing_panel)
 
     var computing_title: Label = Label.new()
@@ -277,6 +285,21 @@ func add_simple_row(container: VBoxContainer, title: String, key: String) -> voi
     row.add_child(value)
 
 func setup_upgrades() -> void:
+    upgrade_unlocks = {
+        "analytics_1": 0,
+        "analytics_2": 500,
+        "analytics_3": 1200,
+        "efficiency_1": 150,
+        "efficiency_2": 400,
+        "efficiency_3": 800,
+        "bulk_wire_1": 50,
+        "bulk_wire_2": 400,
+        "marketing_insight_1": 250,
+        "marketing_insight_2": 900,
+        "price_optimizer": 1200,
+        "processor_boost": 2500,
+        "memory_boost": 2500
+    }
     upgrades.append_array([
         create_upgrade("analytics_1", "Sales analytics I", "+0.15 base demand", 120, func(): demand_bonus += 0.15),
         create_upgrade("analytics_2", "Sales analytics II", "+0.20 base demand", 220, func(): demand_bonus += 0.2),
@@ -346,17 +369,19 @@ func process_sales(elapsed: float) -> void:
     if actual_sales <= 0:
         return
     unsold_inventory -= actual_sales
+    total_sold += actual_sales
     funds += float(actual_sales) * price
 
 func calculate_target_demand() -> float:
-    var base_demand: float = 0.55 + float(marketing_level) * 0.3 + demand_bonus
-    var price_factor: float = clamp(1.4 - price * 0.7 * price_sensitivity, 0.15, 1.8)
-    var inventory_pressure: float = clamp(1.0 - float(unsold_inventory) / 900.0, 0.3, 1.0)
-    return max(0.05, base_demand * price_factor * inventory_pressure)
+    var base_demand: float = 0.6 + float(marketing_level) * 0.28 + demand_bonus
+    var price_factor: float = clamp(1.4 - price * 0.7 * price_sensitivity, 0.25, 1.8)
+    var inventory_pressure: float = clamp(1.0 - float(unsold_inventory) / 8000.0, 0.75, 1.0)
+    var saturation_pressure: float = 1.0 - min(float(total_sold) / 500000.0, 0.25)
+    return max(0.1, base_demand * price_factor * inventory_pressure * saturation_pressure)
 
 func update_demand(delta: float) -> void:
     var target: float = calculate_target_demand()
-    var smoothing_factor: float = clamp(delta * 0.55, 0.0, 1.0)
+    var smoothing_factor: float = clamp(delta * 0.35, 0.0, 1.0)
     smoothed_demand = lerpf(smoothed_demand, target, smoothing_factor)
 
 func adjust_price(amount: float) -> void:
@@ -453,6 +478,8 @@ func refresh_ui() -> void:
     labels["memory"].text = str(memory_banks)
     labels["ops"].text = "%.0f / %d ops" % [operations, ops_capacity]
 
+    var autoclipper_unlocked: bool = total_paperclips >= AUTOCLIPPER_UNLOCK
+    buttons["autoclipper"].visible = autoclipper_unlocked
     buttons["make"].disabled = wire <= 0
     buttons["wire"].text = "Buy wire (+" + str(wire_per_purchase) + "m) (" + format_currency(WIRE_BASE_COST) + ")"
     buttons["wire"].disabled = funds < WIRE_BASE_COST
@@ -463,6 +490,11 @@ func refresh_ui() -> void:
     buttons["autoclipper"].text = "Buy AutoClipper (" + format_currency(autoclipper_cost) + ")"
     buttons["autoclipper"].disabled = funds < autoclipper_cost or wire <= 0
 
+    var computing_unlocked: bool = total_paperclips >= COMPUTING_UNLOCK
+    computing_panel.visible = computing_unlocked
+    buttons["processor"].visible = computing_unlocked
+    buttons["memory"].visible = computing_unlocked
+
     buttons["processor"].text = "Buy processor (" + format_currency(processor_cost) + ")"
     buttons["processor"].disabled = funds < processor_cost
     buttons["memory"].text = "Buy memory (" + format_currency(memory_cost) + ")"
@@ -470,7 +502,9 @@ func refresh_ui() -> void:
 
     for upgrade: Upgrade in upgrades:
         var button: Button = upgrade_buttons[upgrade.key]
-        button.disabled = upgrade.applied or operations < float(upgrade.ops_cost)
+        var unlocked: bool = total_paperclips >= upgrade_unlocks.get(upgrade.key, 0)
+        button.visible = unlocked
+        button.disabled = upgrade.applied or (operations < float(upgrade.ops_cost)) or not unlocked
         var label: String = "%s - %s" % [upgrade.label, upgrade.description]
         label += " (" + str(upgrade.ops_cost) + " ops)"
         if upgrade.applied:
