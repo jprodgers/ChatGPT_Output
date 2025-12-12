@@ -8,23 +8,23 @@ The control panel lives on the left to maximize horizontal space for the grid an
 
 ## Controls & Features
 - **Grid**
-  - Cell size slider (1–128 px) keeps the grid aligned to the viewport area beside the sidebar; resizing or changing cell size rebuilds the grid.
-  - Global updates-per-second gate (default 1.0) to throttle or stress-test how often automata logic runs per frame.
+  - Cell size slider (1–128 px, default 2) keeps the grid aligned to the viewport area beside the sidebar; resizing or changing cell size rebuilds the grid.
+  - Global updates-per-second gate (default 1.0) scales automata speed up or down; raise it to drive faster-than-real-time updates.
   - Edge behavior: Wrap (default), Bounce, or Fall off.
   - Alive/dead color pickers (default white/black).
-  - Random seeding with adjustable coverage percentage and a clear button that also clears ants.
+  - Random seeding with adjustable coverage percentage and a clear button that also clears ants (automata start disabled and unseeded by default).
 - **Playback**
   - Global Play/Pause toggle plus a single-step button to advance every enabled automaton once while paused.
 - **Wolfram**
-  - Rule selector (0–255), per-second rate (floats allowed), auto toggle, and manual step.
+  - Rule selector (0–255), per-second rate (floats allowed), auto toggle (off by default), and manual step.
   - One-click top-row seeds: random fill based on the current seed percentage or a single centered dot, both resetting the Wolfram sweep to the second row.
   - Sweeps from the top row downward, wrapping when it reaches the bottom.
 - **Langton's Ant**
   - Spawn any number of ants with a chosen color; supports edge behaviors above.
-  - Dedicated “Clear ants” action to remove all walkers when needed.
-  - Per-second rate, auto toggle, and manual step.
+  - Dedicated “Clear ants” action to remove all walkers when needed and the global “Clear” grid button also removes ants.
+  - Per-second rate, auto toggle (off by default), and manual step.
 - **Game of Life**
-  - Per-second rate (float), auto toggle, and manual step.
+  - Per-second rate (float), auto toggle (off by default), and manual step.
   - Can chain to ants: set “Every N ant steps” to fire a GoL sweep after that many ant updates (e.g., 100).
 
 ## Suggested Workflow

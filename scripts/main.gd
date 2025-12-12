@@ -7,7 +7,7 @@ const EDGE_WRAP := 0
 const EDGE_BOUNCE := 1
 const EDGE_FALLOFF := 2
 
-var cell_size: int = 1
+var cell_size: int = 2
 var grid_size: Vector2i
 var grid: PackedByteArray = PackedByteArray()
 
@@ -20,15 +20,15 @@ var wolfram_rule: int = 110
 var wolfram_row: int = 0
 var wolfram_rate: float = 1.0
 var wolfram_accumulator: float = 0.0
-var wolfram_enabled: bool = true
+var wolfram_enabled: bool = false
 
 var ant_rate: float = 1.0
 var ant_accumulator: float = 0.0
-var ants_enabled: bool = true
+var ants_enabled: bool = false
 
 var gol_rate: float = 0.01
 var gol_accumulator: float = 0.0
-var gol_enabled: bool = true
+var gol_enabled: bool = false
 var gol_every_ant_steps: int = 100
 
 var ants: Array[Vector2i] = []
@@ -39,7 +39,6 @@ var ant_step_counter: int = 0
 var seed_fill: float = 0.5
 
 var global_rate: float = 1.0
-var global_accumulator: float = 0.0
 
 var ui_ready: bool = false
 var is_paused: bool = false
@@ -67,7 +66,6 @@ func _ready() -> void:
     set_process(true)
     build_ui()
     update_grid_size()
-    random_fill_grid()
     render_grid()
 
 func build_ui() -> void:
@@ -634,24 +632,7 @@ func _process(delta: float) -> void:
     if is_paused and not step_requested:
         return
 
-    var tick_deltas: Array[float] = []
-    if step_requested:
-        tick_deltas.append(0.0)
-    elif global_rate > 0.0:
-        global_accumulator += delta
-        var global_interval := 1.0 / global_rate
-        while global_accumulator >= global_interval:
-            tick_deltas.append(global_interval)
-            global_accumulator -= global_interval
-    else:
-        tick_deltas.append(delta)
-
     var updated := false
-
-    for tick_delta in tick_deltas:
-        updated = process_wolfram(tick_delta) or updated
-        updated = process_ants(tick_delta) or updated
-        updated = process_game_of_life(tick_delta) or updated
 
     if step_requested:
         if wolfram_enabled:
@@ -664,6 +645,11 @@ func _process(delta: float) -> void:
             step_game_of_life()
             updated = true
         step_requested = false
+    else:
+        var scaled_delta := delta * max(global_rate, 0.0)
+        updated = process_wolfram(scaled_delta) or updated
+        updated = process_ants(scaled_delta) or updated
+        updated = process_game_of_life(scaled_delta) or updated
 
     if updated:
         render_grid()
