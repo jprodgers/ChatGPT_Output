@@ -62,10 +62,10 @@ func _ready() -> void:
 func build_ui() -> void:
     var margin: MarginContainer = MarginContainer.new()
     margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-    margin.offset_left = 24
-    margin.offset_top = 16
-    margin.offset_right = -24
-    margin.offset_bottom = -16
+    margin.offset_left = 32
+    margin.offset_top = 20
+    margin.offset_right = -32
+    margin.offset_bottom = -20
     add_child(margin)
 
     var root: VBoxContainer = VBoxContainer.new()
@@ -78,11 +78,23 @@ func build_ui() -> void:
     title.add_theme_font_size_override("font_size", 28)
     root.add_child(title)
 
+    var content_row: HBoxContainer = HBoxContainer.new()
+    content_row.add_theme_constant_override("separation", 20)
+    content_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    content_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    root.add_child(content_row)
+
+    var left_column: VBoxContainer = VBoxContainer.new()
+    left_column.add_theme_constant_override("separation", 12)
+    left_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    left_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    content_row.add_child(left_column)
+
     var stats_box: GridContainer = GridContainer.new()
     stats_box.columns = 2
     stats_box.add_theme_constant_override("h_separation", 12)
     stats_box.add_theme_constant_override("v_separation", 6)
-    root.add_child(stats_box)
+    left_column.add_child(stats_box)
 
     add_stat_row(stats_box, "Clips made", "total")
     add_stat_row(stats_box, "Unsold inventory", "inventory")
@@ -95,7 +107,7 @@ func build_ui() -> void:
 
     var make_row: HBoxContainer = HBoxContainer.new()
     make_row.add_theme_constant_override("separation", 8)
-    root.add_child(make_row)
+    left_column.add_child(make_row)
 
     var make_button: Button = Button.new()
     make_button.text = "Make paperclip"
@@ -116,7 +128,7 @@ func build_ui() -> void:
     var price_box: HBoxContainer = HBoxContainer.new()
     price_box.alignment = BoxContainer.ALIGNMENT_CENTER
     price_box.add_theme_constant_override("separation", 6)
-    root.add_child(price_box)
+    left_column.add_child(price_box)
 
     var price_label: Label = Label.new()
     price_label.text = "Adjust price"
@@ -124,24 +136,23 @@ func build_ui() -> void:
 
     var minus_button: Button = Button.new()
     minus_button.text = "-"
+    minus_button.focus_mode = Control.FOCUS_NONE
+    minus_button.custom_minimum_size = Vector2(38, 28)
     minus_button.pressed.connect(func(): adjust_price(-PRICE_STEP))
     buttons["price_down"] = minus_button
     price_box.add_child(minus_button)
 
-    var current_price: Label = Label.new()
-    current_price.text = "$0.25"
-    labels["current_price"] = current_price
-    price_box.add_child(current_price)
-
     var plus_button: Button = Button.new()
     plus_button.text = "+"
+    plus_button.focus_mode = Control.FOCUS_NONE
+    plus_button.custom_minimum_size = Vector2(38, 28)
     plus_button.pressed.connect(func(): adjust_price(PRICE_STEP))
     buttons["price_up"] = plus_button
     price_box.add_child(plus_button)
 
     var marketing_row: HBoxContainer = HBoxContainer.new()
     marketing_row.add_theme_constant_override("separation", 8)
-    root.add_child(marketing_row)
+    left_column.add_child(marketing_row)
 
     var marketing_button: Button = Button.new()
     marketing_button.pressed.connect(_on_buy_marketing_pressed)
@@ -155,7 +166,7 @@ func build_ui() -> void:
 
     var computing_panel: VBoxContainer = VBoxContainer.new()
     computing_panel.add_theme_constant_override("separation", 6)
-    root.add_child(computing_panel)
+    left_column.add_child(computing_panel)
 
     var computing_title: Label = Label.new()
     computing_title.text = "Computing"
@@ -180,28 +191,43 @@ func build_ui() -> void:
     buttons["memory"] = buy_memory_button
     computing_buttons.add_child(buy_memory_button)
 
+    var log_label: Label = Label.new()
+    log_label.text = "First phase: build clips, manage wire, set prices, invest in computing, and buy marketing, AutoClippers, and upgrades."
+    log_label.autowrap_mode = TextServer.AUTOWRAP_WORD
+    left_column.add_child(log_label)
+
+    var right_column: VBoxContainer = VBoxContainer.new()
+    right_column.add_theme_constant_override("separation", 10)
+    right_column.size_flags_horizontal = Control.SIZE_FILL
+    right_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    content_row.add_child(right_column)
+
     var upgrade_panel: VBoxContainer = VBoxContainer.new()
-    upgrade_panel.add_theme_constant_override("separation", 4)
-    root.add_child(upgrade_panel)
+    upgrade_panel.add_theme_constant_override("separation", 6)
+    upgrade_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    right_column.add_child(upgrade_panel)
 
     var upgrade_title: Label = Label.new()
     upgrade_title.text = "Upgrades"
     upgrade_title.add_theme_font_size_override("font_size", 18)
     upgrade_panel.add_child(upgrade_title)
 
+    var upgrade_scroll: ScrollContainer = ScrollContainer.new()
+    upgrade_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    upgrade_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    upgrade_scroll.custom_minimum_size = Vector2(360, 420)
+    upgrade_panel.add_child(upgrade_scroll)
+
     var upgrade_container: VBoxContainer = VBoxContainer.new()
-    upgrade_container.add_theme_constant_override("separation", 4)
-    upgrade_panel.add_child(upgrade_container)
+    upgrade_container.add_theme_constant_override("separation", 6)
+    upgrade_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    upgrade_scroll.add_child(upgrade_container)
     for key: String in UPGRADE_KEYS:
         var button: Button = Button.new()
         upgrade_buttons[key] = button
+        button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
         button.pressed.connect(func(): _on_upgrade_pressed(key))
         upgrade_container.add_child(button)
-
-    var log_label: Label = Label.new()
-    log_label.text = "First phase: build clips, manage wire, set prices, invest in computing, and buy marketing, AutoClippers, and upgrades."
-    log_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-    root.add_child(log_label)
 
 func add_stat_row(container: GridContainer, title: String, key: String) -> void:
     var label: Label = Label.new()

@@ -8,5 +8,9 @@ config_version=5
 config/name="Universal Paperclips"
 run/main_scene="res://scenes/Main.tscn"
 
+[display]
+window/size/width=1400
+window/size/height=900
+
 [rendering]
 renderer/rendering_method="forward_plus"
