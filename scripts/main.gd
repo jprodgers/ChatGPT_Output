@@ -498,7 +498,6 @@ func render_grid() -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:
         return
     var img := Image.create(grid_size.x * cell_size, grid_size.y * cell_size, false, Image.FORMAT_RGBA8)
-    img.lock()
     var ant_map: Dictionary = {}
     for i in range(ants.size()):
         ant_map[ants[i]] = ant_colors[i]
@@ -514,7 +513,6 @@ func render_grid() -> void:
             for oy in range(cell_size):
                 for ox in range(cell_size):
                     img.set_pixel(x * cell_size + ox, y * cell_size + oy, color)
-    img.unlock()
     var tex := ImageTexture.create_from_image(img)
     grid_view.texture = tex
 
