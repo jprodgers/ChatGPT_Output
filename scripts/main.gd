@@ -38,6 +38,8 @@ var ant_step_counter: int = 0
 
 var seed_fill: float = 0.5
 
+var ui_ready: bool = false
+
 @onready var grid_view: TextureRect = TextureRect.new()
 @onready var info_label: Label = Label.new()
 
@@ -102,6 +104,8 @@ func build_ui() -> void:
     grid_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
     grid_view.modulate = Color.WHITE
     view_container.add_child(grid_view)
+
+    ui_ready = true
 
 func build_grid_controls() -> VBoxContainer:
     var box := VBoxContainer.new()
@@ -322,6 +326,8 @@ func build_gol_controls() -> VBoxContainer:
     return box
 
 func update_grid_size() -> void:
+    if not ui_ready:
+        return
     var viewport_size: Vector2i = get_viewport_rect().size
     grid_size = Vector2i(max(1, viewport_size.x / cell_size), max(1, viewport_size.y / cell_size))
     grid.resize(grid_size.x * grid_size.y)
