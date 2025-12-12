@@ -377,7 +377,7 @@ func _process(delta: float) -> void:
     render_grid()
 
 func wrap_position(pos: Vector2i) -> Vector2i:
-    return Vector2i(Math.posmod(pos.x, grid_size.x), Math.posmod(pos.y, grid_size.y))
+    return Vector2i(posmod(pos.x, grid_size.x), posmod(pos.y, grid_size.y))
 
 func sample_cell(pos: Vector2i) -> int:
     if pos.x >= 0 and pos.x < grid_size.x and pos.y >= 0 and pos.y < grid_size.y:
