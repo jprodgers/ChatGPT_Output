@@ -57,6 +57,7 @@ var ui_ready: bool = false
 @onready var fill_spin: SpinBox = SpinBox.new()
 
 func _ready() -> void:
+    set_process(true)
     build_ui()
     update_grid_size()
     random_fill_grid()
@@ -329,14 +330,18 @@ func update_grid_size() -> void:
     if not ui_ready:
         return
     var viewport_size: Vector2i = get_viewport_rect().size
-    grid_size = Vector2i(max(1, viewport_size.x / cell_size), max(1, viewport_size.y / cell_size))
-    grid.resize(grid_size.x * grid_size.y)
-    grid.fill(0)
-    wolfram_row = 0
-    ants.clear()
-    ant_directions.clear()
-    ant_colors.clear()
-    ant_step_counter = 0
+    var new_size := Vector2i(max(1, viewport_size.x / cell_size), max(1, viewport_size.y / cell_size))
+    var size_changed := new_size != grid_size or grid.size() != new_size.x * new_size.y
+    grid_size = new_size
+
+    if size_changed:
+        grid.resize(grid_size.x * grid_size.y)
+        grid.fill(0)
+        wolfram_row = 0
+        ants.clear()
+        ant_directions.clear()
+        ant_colors.clear()
+        ant_step_counter = 0
     info_label.text = "Grid: %dx%d cells @ %d px" % [grid_size.x, grid_size.y, cell_size]
 
 func random_fill_grid() -> void:
