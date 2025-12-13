@@ -68,9 +68,8 @@ void draw() {
   boolean steppedThisFrame = false;
   if (!pauseUpdates) {
     for (int i = 0; i < updatesPerDraw; i++) {
-      updateSandpile();
+      steppedThisFrame = updateSandpile() || steppedThisFrame;
     }
-    steppedThisFrame = true;
   }
 
   drawSand();
@@ -80,13 +79,15 @@ void draw() {
   }
 }
 
-void updateSandpile() {
+boolean updateSandpile() {
   // Clear buffer
   for (int x = 0; x < cols; x++) {
     for (int y = 0; y < rows; y++) {
       bufferGrid[x][y] = 0;
     }
   }
+
+  boolean changed = false;
 
   for (int x = 0; x < cols; x++) {
     for (int y = 0; y < rows; y++) {
@@ -98,6 +99,7 @@ void updateSandpile() {
         if (x < cols - 1) bufferGrid[x + 1][y] += toppleCount;
         if (y > 0) bufferGrid[x][y - 1] += toppleCount;
         if (y < rows - 1) bufferGrid[x][y + 1] += toppleCount;
+        changed = true;
       }
     }
   }
@@ -107,6 +109,8 @@ void updateSandpile() {
       grid[x][y] += bufferGrid[x][y];
     }
   }
+
+  return changed;
 }
 
 void drawSand() {
@@ -324,7 +328,7 @@ void dropCenter(int amount) {
 color[] buildPalette(int count) {
   color[] colors = new color[count];
   for (int i = 0; i < count; i++) {
-    float t = map(i, 0, count - 1, 0, 1);
+    float t = (float)i / max(1, count); // keep final hue shy of full wrap to avoid repeating red
     colors[i] = rainbowColor(t);
   }
   return colors;
