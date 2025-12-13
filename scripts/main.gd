@@ -32,6 +32,23 @@ var gol_enabled: bool = false
 var gol_every_ant_steps: int = 100
 var gol_trigger_from_ants: bool = false
 
+var day_night_rate: float = 1.0
+var day_night_accumulator: float = 0.0
+var day_night_enabled: bool = false
+
+var seeds_rate: float = 1.0
+var seeds_accumulator: float = 0.0
+var seeds_enabled: bool = false
+
+var turmite_rate: float = 1.0
+var turmite_accumulator: float = 0.0
+var turmite_enabled: bool = false
+var turmite_rule: String = "RL"
+var turmite_count: int = 1
+var turmites: Array[Vector2i] = []
+var turmite_directions: Array[int] = []
+var turmite_colors: Array[Color] = []
+
 var ants: Array[Vector2i] = []
 var ant_directions: Array[int] = []
 var ant_colors: Array[Color] = []
@@ -66,6 +83,12 @@ var export_counter: int = 0
 @onready var ant_count_spin: SpinBox = SpinBox.new()
 @onready var fill_spin: SpinBox = SpinBox.new()
 @onready var export_pattern_edit: LineEdit = LineEdit.new()
+@onready var day_night_rate_spin: SpinBox = SpinBox.new()
+@onready var seeds_rate_spin: SpinBox = SpinBox.new()
+@onready var turmite_rate_spin: SpinBox = SpinBox.new()
+@onready var turmite_rule_edit: LineEdit = LineEdit.new()
+@onready var turmite_count_spin: SpinBox = SpinBox.new()
+@onready var turmite_color_picker: ColorPickerButton = ColorPickerButton.new()
 
 func _ready() -> void:
     set_process(true)
@@ -131,7 +154,10 @@ func build_ui() -> void:
     controls_column.add_child(build_collapsible_section("Export", build_export_controls()))
     controls_column.add_child(build_collapsible_section("Wolfram", build_wolfram_controls()))
     controls_column.add_child(build_collapsible_section("Langton's Ant", build_ant_controls()))
+    controls_column.add_child(build_collapsible_section("Turmite", build_turmite_controls()))
     controls_column.add_child(build_collapsible_section("Game of Life", build_gol_controls()))
+    controls_column.add_child(build_collapsible_section("Day & Night", build_day_night_controls()))
+    controls_column.add_child(build_collapsible_section("Seeds", build_seeds_controls()))
 
     view_container = Panel.new()
     view_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -157,12 +183,13 @@ func build_collapsible_section(title: String, content: Control) -> VBoxContainer
     var header: Button = Button.new()
     header.text = title
     header.toggle_mode = true
-    header.button_pressed = true
+    header.button_pressed = false
     wrapper.add_child(header)
 
     var holder: VBoxContainer = VBoxContainer.new()
     holder.add_theme_constant_override("separation", 6)
     holder.add_child(content)
+    holder.visible = header.button_pressed
     wrapper.add_child(holder)
 
     header.toggled.connect(func(pressed: bool) -> void:
@@ -250,6 +277,7 @@ func build_grid_controls() -> VBoxContainer:
     clear_button.pressed.connect(func() -> void:
         grid.fill(0)
         clear_ants()
+        clear_turmites()
         render_grid()
     )
     box.add_child(clear_button)
@@ -453,6 +481,137 @@ func build_gol_controls() -> VBoxContainer:
 
     return box
 
+func build_day_night_controls() -> VBoxContainer:
+    var box: VBoxContainer = VBoxContainer.new()
+    box.add_theme_constant_override("separation", 6)
+
+    var rate_row: HBoxContainer = HBoxContainer.new()
+    var rate_label: Label = Label.new()
+    rate_label.text = "Steps/sec"
+    rate_row.add_child(rate_label)
+    day_night_rate_spin.min_value = 0.0
+    day_night_rate_spin.max_value = 120.0
+    day_night_rate_spin.step = 0.001
+    day_night_rate_spin.value = day_night_rate
+    day_night_rate_spin.allow_greater = true
+    day_night_rate_spin.value_changed.connect(func(v: float) -> void: day_night_rate = max(0.0, v))
+    rate_row.add_child(day_night_rate_spin)
+    box.add_child(rate_row)
+
+    var buttons: HBoxContainer = HBoxContainer.new()
+    var toggle: CheckBox = CheckBox.new()
+    toggle.text = "Auto"
+    toggle.button_pressed = day_night_enabled
+    toggle.toggled.connect(func(v: bool) -> void: day_night_enabled = v)
+    buttons.add_child(toggle)
+    var step: Button = Button.new()
+    step.text = "Step"
+    step.pressed.connect(func() -> void: step_day_night(); render_grid())
+    buttons.add_child(step)
+    box.add_child(buttons)
+
+    return box
+
+func build_seeds_controls() -> VBoxContainer:
+    var box: VBoxContainer = VBoxContainer.new()
+    box.add_theme_constant_override("separation", 6)
+
+    var rate_row: HBoxContainer = HBoxContainer.new()
+    var rate_label: Label = Label.new()
+    rate_label.text = "Steps/sec"
+    rate_row.add_child(rate_label)
+    seeds_rate_spin.min_value = 0.0
+    seeds_rate_spin.max_value = 120.0
+    seeds_rate_spin.step = 0.001
+    seeds_rate_spin.value = seeds_rate
+    seeds_rate_spin.allow_greater = true
+    seeds_rate_spin.value_changed.connect(func(v: float) -> void: seeds_rate = max(0.0, v))
+    rate_row.add_child(seeds_rate_spin)
+    box.add_child(rate_row)
+
+    var buttons: HBoxContainer = HBoxContainer.new()
+    var toggle: CheckBox = CheckBox.new()
+    toggle.text = "Auto"
+    toggle.button_pressed = seeds_enabled
+    toggle.toggled.connect(func(v: bool) -> void: seeds_enabled = v)
+    buttons.add_child(toggle)
+    var step: Button = Button.new()
+    step.text = "Step"
+    step.pressed.connect(func() -> void: step_seeds(); render_grid())
+    buttons.add_child(step)
+    box.add_child(buttons)
+
+    return box
+
+func build_turmite_controls() -> VBoxContainer:
+    var box: VBoxContainer = VBoxContainer.new()
+    box.add_theme_constant_override("separation", 6)
+
+    var rule_row: HBoxContainer = HBoxContainer.new()
+    var rule_label: Label = Label.new()
+    rule_label.text = "Rule"
+    rule_row.add_child(rule_label)
+    turmite_rule_edit.text = turmite_rule
+    turmite_rule_edit.placeholder_text = "RL"
+    turmite_rule_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    turmite_rule_edit.text_changed.connect(func(text: String) -> void:
+        turmite_rule = text.strip_edges()
+    )
+    rule_row.add_child(turmite_rule_edit)
+    box.add_child(rule_row)
+
+    var spawn_row: HBoxContainer = HBoxContainer.new()
+    var count_label: Label = Label.new()
+    count_label.text = "Turmites"
+    spawn_row.add_child(count_label)
+    turmite_count_spin.min_value = 1
+    turmite_count_spin.max_value = 200
+    turmite_count_spin.value = turmite_count
+    turmite_count_spin.step = 1
+    turmite_count_spin.value_changed.connect(func(v: float) -> void: turmite_count = int(v))
+    spawn_row.add_child(turmite_count_spin)
+    turmite_color_picker.color = Color(0, 0.6, 1)
+    spawn_row.add_child(turmite_color_picker)
+    var spawn_button: Button = Button.new()
+    spawn_button.text = "Spawn"
+    spawn_button.pressed.connect(func() -> void: spawn_turmites(turmite_count, turmite_color_picker.color))
+    spawn_row.add_child(spawn_button)
+    box.add_child(spawn_row)
+
+    var rate_row: HBoxContainer = HBoxContainer.new()
+    var rate_label: Label = Label.new()
+    rate_label.text = "Steps/sec"
+    rate_row.add_child(rate_label)
+    turmite_rate_spin.min_value = 0.0
+    turmite_rate_spin.max_value = 500.0
+    turmite_rate_spin.step = 0.01
+    turmite_rate_spin.value = turmite_rate
+    turmite_rate_spin.allow_greater = true
+    turmite_rate_spin.value_changed.connect(func(v: float) -> void: turmite_rate = max(0.0, v))
+    rate_row.add_child(turmite_rate_spin)
+    box.add_child(rate_row)
+
+    var buttons: HBoxContainer = HBoxContainer.new()
+    var toggle: CheckBox = CheckBox.new()
+    toggle.text = "Auto"
+    toggle.button_pressed = turmite_enabled
+    toggle.toggled.connect(func(v: bool) -> void: turmite_enabled = v)
+    buttons.add_child(toggle)
+    var step: Button = Button.new()
+    step.text = "Step"
+    step.pressed.connect(func() -> void: step_turmites(); render_grid())
+    buttons.add_child(step)
+    var clear_button: Button = Button.new()
+    clear_button.text = "Clear"
+    clear_button.pressed.connect(func() -> void:
+        clear_turmites()
+        render_grid()
+    )
+    buttons.add_child(clear_button)
+    box.add_child(buttons)
+
+    return box
+
 func update_grid_size() -> void:
     if not ui_ready:
         return
@@ -470,6 +629,7 @@ func update_grid_size() -> void:
         grid.fill(0)
         wolfram_row = 0
         clear_ants()
+        clear_turmites()
     info_label.text = "Grid: %dx%d cells @ %d px" % [grid_size.x, grid_size.y, cell_size]
 
 func random_fill_grid() -> void:
@@ -579,6 +739,42 @@ func process_game_of_life(delta: float) -> bool:
         stepped = true
     return stepped
 
+func process_day_night(delta: float) -> bool:
+    if not day_night_enabled or day_night_rate <= 0.0:
+        return false
+    day_night_accumulator += delta
+    var interval: float = 1.0 / day_night_rate
+    var stepped: bool = false
+    while day_night_accumulator >= interval:
+        step_day_night()
+        day_night_accumulator -= interval
+        stepped = true
+    return stepped
+
+func process_seeds(delta: float) -> bool:
+    if not seeds_enabled or seeds_rate <= 0.0:
+        return false
+    seeds_accumulator += delta
+    var interval: float = 1.0 / seeds_rate
+    var stepped: bool = false
+    while seeds_accumulator >= interval:
+        step_seeds()
+        seeds_accumulator -= interval
+        stepped = true
+    return stepped
+
+func process_turmites(delta: float) -> bool:
+    if not turmite_enabled or turmite_rate <= 0.0:
+        return false
+    turmite_accumulator += delta
+    var interval: float = 1.0 / turmite_rate
+    var stepped: bool = false
+    while turmite_accumulator >= interval:
+        step_turmites()
+        turmite_accumulator -= interval
+        stepped = true
+    return stepped
+
 func step_wolfram(allow_wrap: bool = true) -> void:
     if grid_size.y <= 0:
         return
@@ -655,8 +851,19 @@ func step_ants() -> void:
         step_game_of_life()
 
 func step_game_of_life() -> void:
+    step_totalistic([3], [2, 3])
+
+func step_day_night() -> void:
+    step_totalistic([3, 6, 7, 8], [3, 4, 6, 7, 8])
+
+func step_seeds() -> void:
+    step_totalistic([2], [])
+
+func step_totalistic(birth: Array[int], survive: Array[int]) -> void:
     var next_state: PackedByteArray = PackedByteArray()
     next_state.resize(grid.size())
+    var birth_set: Array[int] = birth
+    var survive_set: Array[int] = survive
     for y in range(grid_size.y):
         for x in range(grid_size.x):
             var alive: int = sample_cell(Vector2i(x, y))
@@ -668,28 +875,84 @@ func step_game_of_life() -> void:
                     neighbors += sample_cell(Vector2i(x + dx, y + dy))
             var new_val: int = 0
             if alive == 1:
-                if neighbors == 2 or neighbors == 3:
+                if survive_set.has(neighbors):
                     new_val = 1
-                else:
-                    new_val = 0
             else:
-                if neighbors == 3:
+                if birth_set.has(neighbors):
                     new_val = 1
-                else:
-                    new_val = 0
             next_state[y * grid_size.x + x] = new_val
     grid = next_state
 
+func spawn_turmites(count: int, color: Color) -> void:
+    var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+    rng.randomize()
+    for _i in range(count):
+        turmites.append(Vector2i(rng.randi_range(0, grid_size.x - 1), rng.randi_range(0, grid_size.y - 1)))
+        turmite_directions.append(rng.randi_range(0, DIRS.size() - 1))
+        turmite_colors.append(color)
+    render_grid()
+
+func clear_turmites() -> void:
+    turmites.clear()
+    turmite_directions.clear()
+    turmite_colors.clear()
+
+func step_turmites() -> void:
+    var remove_indices: Array[int] = []
+    var rule_upper: String = turmite_rule.to_upper()
+    if rule_upper.length() < 2:
+        rule_upper = "RL"
+    for i in range(turmites.size()):
+        var pos: Vector2i = turmites[i]
+        if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
+            remove_indices.append(i)
+            continue
+
+        var idx: int = pos.y * grid_size.x + pos.x
+        var current: int = grid[idx]
+        var rule_idx: int = clamp(current, 0, rule_upper.length() - 1)
+        var turn: String = rule_upper[rule_idx]
+        if turn == "R":
+            turmite_directions[i] = (turmite_directions[i] + 1) % DIRS.size()
+        else:
+            turmite_directions[i] = (turmite_directions[i] + DIRS.size() - 1) % DIRS.size()
+
+        grid[idx] = 1 - current
+
+        var next: Vector2i = pos + DIRS[turmite_directions[i]]
+        if edge_mode == EDGE_WRAP:
+            next = wrap_position(next)
+        elif edge_mode == EDGE_BOUNCE:
+            if next.x < 0 or next.x >= grid_size.x or next.y < 0 or next.y >= grid_size.y:
+                turmite_directions[i] = (turmite_directions[i] + 2) % DIRS.size()
+                next = pos + DIRS[turmite_directions[i]]
+                next.x = clamp(next.x, 0, grid_size.x - 1)
+                next.y = clamp(next.y, 0, grid_size.y - 1)
+        elif edge_mode == EDGE_FALLOFF:
+            if next.x < 0 or next.x >= grid_size.x or next.y < 0 or next.y >= grid_size.y:
+                remove_indices.append(i)
+                continue
+
+        turmites[i] = next
+
+    for j in range(remove_indices.size() - 1, -1, -1):
+        var remove_idx: int = remove_indices[j]
+        turmites.remove_at(remove_idx)
+        turmite_directions.remove_at(remove_idx)
+        turmite_colors.remove_at(remove_idx)
+
 func build_grid_image() -> Image:
     var img: Image = Image.create(grid_size.x * cell_size, grid_size.y * cell_size, false, Image.FORMAT_RGBA8)
-    var ant_map: Dictionary = {}
+    var marker_map: Dictionary = {}
     for i in range(ants.size()):
-        ant_map[ants[i]] = ant_colors[i]
+        marker_map[ants[i]] = ant_colors[i]
+    for i in range(turmites.size()):
+        marker_map[turmites[i]] = turmite_colors[i]
     for y in range(grid_size.y):
         for x in range(grid_size.x):
             var color: Color = dead_color if grid[y * grid_size.x + x] == 0 else alive_color
-            if ant_map.has(Vector2i(x, y)):
-                color = ant_map[Vector2i(x, y)]
+            if marker_map.has(Vector2i(x, y)):
+                color = marker_map[Vector2i(x, y)]
             for oy in range(cell_size):
                 for ox in range(cell_size):
                     img.set_pixel(x * cell_size + ox, y * cell_size + oy, color)
@@ -751,12 +1014,24 @@ func _process(delta: float) -> void:
         if gol_enabled:
             step_game_of_life()
             updated = true
+        if day_night_enabled:
+            step_day_night()
+            updated = true
+        if seeds_enabled:
+            step_seeds()
+            updated = true
+        if turmite_enabled:
+            step_turmites()
+            updated = true
         step_requested = false
     else:
         var scaled_delta: float = delta * max(global_rate, 0.0)
         updated = process_wolfram(scaled_delta) or updated
         updated = process_ants(scaled_delta) or updated
         updated = process_game_of_life(scaled_delta) or updated
+        updated = process_day_night(scaled_delta) or updated
+        updated = process_seeds(scaled_delta) or updated
+        updated = process_turmites(scaled_delta) or updated
 
     if updated:
         render_grid()

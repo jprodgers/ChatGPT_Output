@@ -1,10 +1,10 @@
 # Cellular Automata Sandbox (Godot 4.5.1)
 
-This project builds a fullscreen-friendly cellular automata playground designed for shader experimentation. The grid is binary, supports selectable colors, and exposes three stackable automata: Wolfram 1D rules sweeping down the screen, Langton's ants, and Conway's Game of Life (GoL).
+This project builds a fullscreen-friendly cellular automata playground designed for shader experimentation. The grid is binary, supports selectable colors, and exposes stackable automata: Wolfram 1D rules sweeping down the screen, Langton's ants, a customizable Turmite, Conway's Game of Life (GoL), Day & Night, and Seeds.
 
 ## Running
 Open the project in Godot 4.5.1 and play the **Main** scene. The UI is created at runtime, so no additional setup is required.
-The control panel lives on the left to maximize horizontal space for the grid and can be collapsed section-by-section.
+The control panel lives on the left to maximize horizontal space for the grid, starts fully collapsed, and can be opened section-by-section.
 
 ## Controls & Features
 - **Grid**
@@ -12,7 +12,7 @@ The control panel lives on the left to maximize horizontal space for the grid an
   - Global updates-per-second gate (default 10.0) scales automata speed up or down; raise it to drive faster-than-real-time updates.
   - Edge behavior: Wrap (default), Bounce, or Fall off.
   - Alive/dead color pickers (default white/black).
-  - Random seeding with adjustable coverage percentage (default 20%) and a clear button that also clears ants (automata start disabled, unseeded, and paused by default).
+  - Random seeding with adjustable coverage percentage (default 20%) and a clear button that also clears ants/turmites (automata start disabled, unseeded, paused, and all menus collapsed by default).
 - **Playback**
   - Global Play/Pause toggle plus a single-step button to advance every enabled automaton once while paused.
 - **Export**
@@ -26,9 +26,16 @@ The control panel lives on the left to maximize horizontal space for the grid an
   - Spawn any number of ants with a chosen color; supports edge behaviors above.
   - Dedicated “Clear ants” action to remove all walkers when needed and the global “Clear” grid button also removes ants.
   - Per-second rate (default 10.0), auto toggle (off by default), and manual step.
+- **Turmite**
+  - Rule string (default `RL`), spawn count, and color picker for the walker(s); supports edge behaviors above.
+  - Per-second rate control, auto toggle (off by default), manual step, and clear action.
 - **Game of Life**
   - Per-second rate (float, default 1.0), auto toggle (off by default), and manual step.
   - Optional ant chaining: check the box next to “Every N ant steps” to fire a GoL sweep after that many ant updates (e.g., 100); uncheck to run GoL independently (default unchecked).
+- **Day & Night**
+  - Per-second rate control, auto toggle (off by default), and manual step for the B3678/S34678 rule.
+- **Seeds**
+  - Per-second rate control, auto toggle (off by default), and manual step for the B2/S0 rule.
 
 ## Suggested Workflow
 1. Set a Wolfram rule and speed to seed the grid from the top.
