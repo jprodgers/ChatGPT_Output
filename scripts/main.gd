@@ -40,10 +40,20 @@ var seeds_rate: float = 1.0
 var seeds_accumulator: float = 0.0
 var seeds_enabled: bool = false
 
+const TURMITE_RULE_PRESETS: Array[String] = [
+    "RL", # Classic Langton ant
+    "RLR", # Simple oscillations
+    "LR", # Symmetric turn pair
+    "RLLR", # Winding paths
+    "RRLL", # Space-filling drift
+    "RLRR", # Spirals and rays
+    "LRRL", # Dense braids
+]
+
 var turmite_rate: float = 1.0
 var turmite_accumulator: float = 0.0
 var turmite_enabled: bool = false
-var turmite_rule: String = "RL"
+var turmite_rule: String = TURMITE_RULE_PRESETS[0]
 var turmite_count: int = 1
 var turmites: Array[Vector2i] = []
 var turmite_directions: Array[int] = []
@@ -86,7 +96,7 @@ var export_counter: int = 0
 @onready var day_night_rate_spin: SpinBox = SpinBox.new()
 @onready var seeds_rate_spin: SpinBox = SpinBox.new()
 @onready var turmite_rate_spin: SpinBox = SpinBox.new()
-@onready var turmite_rule_edit: LineEdit = LineEdit.new()
+@onready var turmite_rule_option: OptionButton = OptionButton.new()
 @onready var turmite_count_spin: SpinBox = SpinBox.new()
 @onready var turmite_color_picker: ColorPickerButton = ColorPickerButton.new()
 
@@ -551,13 +561,17 @@ func build_turmite_controls() -> VBoxContainer:
     var rule_label: Label = Label.new()
     rule_label.text = "Rule"
     rule_row.add_child(rule_label)
-    turmite_rule_edit.text = turmite_rule
-    turmite_rule_edit.placeholder_text = "RL"
-    turmite_rule_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    turmite_rule_edit.text_changed.connect(func(text: String) -> void:
-        turmite_rule = text.strip_edges()
+    turmite_rule_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    turmite_rule_option.focus_mode = Control.FOCUS_CLICK
+    turmite_rule_option.clear()
+    for preset in TURMITE_RULE_PRESETS:
+        turmite_rule_option.add_item(preset)
+    turmite_rule_option.select(max(0, TURMITE_RULE_PRESETS.find(turmite_rule)))
+    turmite_rule_option.item_selected.connect(func(index: int) -> void:
+        var choice: String = TURMITE_RULE_PRESETS[index]
+        turmite_rule = choice
     )
-    rule_row.add_child(turmite_rule_edit)
+    rule_row.add_child(turmite_rule_option)
     box.add_child(rule_row)
 
     var spawn_row: HBoxContainer = HBoxContainer.new()
