@@ -16,7 +16,7 @@ The control panel lives on the left to maximize horizontal space for the grid, s
 - **Playback**
   - Global Play/Pause toggle plus a single-step button to advance every enabled automaton once while paused.
 - **Export**
-  - Filename pattern field and one-click **Export PNG** button. Use `#` characters for an auto-incremented counter (e.g. `screenshot####.png` saves to `user://screenshot0000.png`, then `0001`, etc.).
+  - Filename pattern field and one-click **Export PNG** button. Use `#` characters for an auto-incremented counter (e.g. `screenshot####.png` saves to `user://screenshot0000.png`, then `0001`, etc.). In web builds, exports trigger a browser download instead of writing to the sandboxed filesystem.
 - **Wolfram**
   - Rule selector (0–255, defaults to 30), per-second rate (floats allowed), auto toggle (off by default), and manual step.
   - One-click top-row seeds: random fill based on the current seed percentage or a single centered dot, both resetting the Wolfram sweep to the second row.

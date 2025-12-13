@@ -1159,12 +1159,21 @@ func export_grid_image() -> void:
         return
     var img: Image = build_grid_image()
     var path: String = resolve_export_path()
-    var err: int = img.save_png(path)
-    if err == OK:
-        export_counter += 1
-        info_label.text = "Exported: %s" % path
+    if Engine.has_singleton("JavaScriptBridge"):
+        var buffer: PackedByteArray = img.save_png_to_buffer()
+        if buffer.size() > 0:
+            JavaScriptBridge.download_buffer(buffer, resolve_web_export_filename(path), "image/png")
+            export_counter += 1
+            info_label.text = "Exported: %s" % path
+        else:
+            info_label.text = "Export failed (empty buffer)"
     else:
-        info_label.text = "Export failed (%d)" % err
+        var err: int = img.save_png(path)
+        if err == OK:
+            export_counter += 1
+            info_label.text = "Exported: %s" % path
+        else:
+            info_label.text = "Export failed (%d)" % err
 
 func resolve_export_path() -> String:
     var pattern: String = export_pattern
@@ -1184,6 +1193,12 @@ func resolve_export_path() -> String:
     if not path.begins_with("user://") and not path.begins_with("res://") and not path.begins_with("/"):
         path = "user://" + path
     return path
+
+func resolve_web_export_filename(path: String) -> String:
+    var filename: String = path.get_file()
+    if filename == "":
+        filename = "export.png"
+    return filename
 
 func _process(delta: float) -> void:
     if not ui_ready:
