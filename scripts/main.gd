@@ -116,9 +116,21 @@ var export_counter: int = 0
 @onready var sand_palette_option: OptionButton = OptionButton.new()
 var sand_color_pickers: Array[ColorPickerButton] = []
 
+func set_sand_palette_by_name(name: String) -> void:
+    sand_palette_name = name
+    sand_colors.clear()
+    var preset: Array = SAND_PALETTE_PRESETS.get(name, [])
+    for value in preset:
+        if value is Color:
+            sand_colors.append(value)
+    while sand_colors.size() < 4:
+        sand_colors.append(Color.WHITE)
+    for i in range(min(sand_color_pickers.size(), sand_colors.size())):
+        sand_color_pickers[i].color = sand_colors[i]
+
 func _ready() -> void:
     set_process(true)
-    sand_colors = (SAND_PALETTE_PRESETS[sand_palette_name] as Array[Color]).duplicate()
+    set_sand_palette_by_name(sand_palette_name)
     build_ui()
     call_deferred("initialize_grid")
 
@@ -574,13 +586,7 @@ func build_sand_controls() -> VBoxContainer:
     sand_palette_option.select(max(0, SAND_PALETTE_ORDER.find(sand_palette_name)))
     sand_palette_option.item_selected.connect(func(index: int) -> void:
         var name: String = sand_palette_option.get_item_text(index)
-        sand_palette_name = name
-        var preset: Array[Color] = SAND_PALETTE_PRESETS.get(name, []) as Array[Color]
-        if preset.size() == 4:
-            sand_colors = preset.duplicate()
-            for i in range(4):
-                if i < sand_color_pickers.size():
-                    sand_color_pickers[i].color = sand_colors[i]
+        set_sand_palette_by_name(name)
         render_grid()
     )
     palette_row.add_child(sand_palette_option)
