@@ -1,514 +1,1056 @@
+@icon("res://icon.svg")
+class_name CellularAutomataHub
 extends Control
 
-const PRICE_STEP: float = 0.05
-const MIN_PRICE: float = 0.05
-const MAX_PRICE: float = 2.0
+const DIRS: Array[Vector2i] = [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]
+const EDGE_WRAP: int = 0
+const EDGE_BOUNCE: int = 1
+const EDGE_FALLOFF: int = 2
 
-const WIRE_BUNDLE: int = 1000
-const WIRE_BASE_COST: float = 15.0
-const AUTOCLIPPER_BASE_COST: float = 12.0
-const MARKETING_BASE_COST: float = 100.0
-const AUTOCLIPPER_RATE: float = 1.0
+var cell_size: int = 8
+var grid_size: Vector2i = Vector2i.ZERO
+var grid: PackedByteArray = PackedByteArray()
 
-const PROCESSOR_BASE_COST: float = 40.0
-const MEMORY_BASE_COST: float = 60.0
-const OPS_PER_PROCESSOR: float = 0.35
-const OPS_MEMORY_FACTOR: float = 0.15
-const BASE_OPS_CAPACITY: int = 50
-const AUTOCLIPPER_UNLOCK: int = 100
-const COMPUTING_UNLOCK: int = 2000
-const UPGRADE_KEYS: Array[String] = [
-    "analytics_1",
-    "analytics_2",
-    "analytics_3",
-    "efficiency_1",
-    "efficiency_2",
-    "efficiency_3",
-    "bulk_wire_1",
-    "bulk_wire_2",
-    "marketing_insight_1",
-    "marketing_insight_2",
-    "price_optimizer",
-    "processor_boost",
-    "memory_boost"
+var alive_color: Color = Color.WHITE
+var dead_color: Color = Color.BLACK
+
+var edge_mode: int = EDGE_WRAP
+
+var wolfram_rule: int = 30
+var wolfram_row: int = 0
+var wolfram_rate: float = 1.0
+var wolfram_accumulator: float = 0.0
+var wolfram_enabled: bool = false
+
+var ant_rate: float = 10.0
+var ant_accumulator: float = 0.0
+var ants_enabled: bool = false
+
+var gol_rate: float = 1.0
+var gol_accumulator: float = 0.0
+var gol_enabled: bool = false
+var gol_every_ant_steps: int = 100
+var gol_trigger_from_ants: bool = false
+
+var day_night_rate: float = 1.0
+var day_night_accumulator: float = 0.0
+var day_night_enabled: bool = false
+
+var seeds_rate: float = 1.0
+var seeds_accumulator: float = 0.0
+var seeds_enabled: bool = false
+
+const TURMITE_RULE_PRESETS: Array[String] = [
+    "RL", # Classic Langton ant
+    "RLR", # Simple oscillations
+    "LR", # Symmetric turn pair
+    "RLLR", # Winding paths
+    "RRLL", # Space-filling drift
+    "RLRR", # Spirals and rays
+    "LRRL", # Dense braids
 ]
 
-class Upgrade:
-    var key: String
-    var label: String
-    var description: String
-    var ops_cost: int
-    var effect: Callable
-    var unlock_at_clips: int
-    var prerequisite: String
-    var applied: bool = false
+var turmite_rate: float = 1.0
+var turmite_accumulator: float = 0.0
+var turmite_enabled: bool = false
+var turmite_rule: String = TURMITE_RULE_PRESETS[0]
+var turmite_count: int = 1
+var turmites: Array[Vector2i] = []
+var turmite_directions: Array[int] = []
+var turmite_colors: Array[Color] = []
 
-var total_paperclips: int = 0
-var total_sold: int = 0
-var unsold_inventory: int = 0
-var funds: float = 0.0
-var wire: int = 1000
-var price: float = 0.25
-var marketing_level: int = 0
-var marketing_cost: float = MARKETING_BASE_COST
-var autoclippers: int = 0
-var autoclipper_cost: float = AUTOCLIPPER_BASE_COST
+var ants: Array[Vector2i] = []
+var ant_directions: Array[int] = []
+var ant_colors: Array[Color] = []
+var ant_step_counter: int = 0
 
-var production_accumulator: float = 0.0
-var sales_accumulator: float = 0.0
-var demand_buffer: float = 0.0
-var smoothed_demand: float = 0.0
+var seed_fill: float = 0.2
 
-var processors: int = 1
-var memory_banks: int = 1
-var operations: float = 0.0
-var ops_capacity: int = BASE_OPS_CAPACITY
-var processor_cost: float = PROCESSOR_BASE_COST
-var memory_cost: float = MEMORY_BASE_COST
+var global_rate: float = 10.0
 
-var demand_bonus: float = 0.0
-var clipper_rate_bonus: float = 0.0
-var wire_per_purchase: int = WIRE_BUNDLE
-var marketing_discount: float = 0.0
-var ops_rate_bonus: float = 0.0
-var ops_capacity_bonus: int = 0
-var price_sensitivity: float = 1.0
+var ui_ready: bool = false
+var is_paused: bool = true
 
-var labels: Dictionary[String, Label] = {}
-var buttons: Dictionary[String, Button] = {}
-var upgrade_buttons: Dictionary[String, Button] = {}
-var upgrades: Array[Upgrade] = []
+var step_requested: bool = false
 
-var computing_panel: VBoxContainer
+var export_pattern: String = "screenshot####.png"
+var export_counter: int = 0
+
+@onready var grid_view: TextureRect = TextureRect.new()
+@onready var info_label: Label = Label.new()
+@onready var view_container: Panel = Panel.new()
+
+@onready var wolfram_rate_spin: SpinBox = SpinBox.new()
+@onready var ant_rate_spin: SpinBox = SpinBox.new()
+@onready var gol_rate_spin: SpinBox = SpinBox.new()
+@onready var gol_every_spin: SpinBox = SpinBox.new()
+@onready var cell_size_spin: SpinBox = SpinBox.new()
+@onready var rule_spin: SpinBox = SpinBox.new()
+@onready var edge_option: OptionButton = OptionButton.new()
+@onready var alive_picker: ColorPickerButton = ColorPickerButton.new()
+@onready var dead_picker: ColorPickerButton = ColorPickerButton.new()
+@onready var ant_color_picker: ColorPickerButton = ColorPickerButton.new()
+@onready var ant_count_spin: SpinBox = SpinBox.new()
+@onready var fill_spin: SpinBox = SpinBox.new()
+@onready var export_pattern_edit: LineEdit = LineEdit.new()
+@onready var day_night_rate_spin: SpinBox = SpinBox.new()
+@onready var seeds_rate_spin: SpinBox = SpinBox.new()
+@onready var turmite_rate_spin: SpinBox = SpinBox.new()
+@onready var turmite_rule_option: OptionButton = OptionButton.new()
+@onready var turmite_count_spin: SpinBox = SpinBox.new()
+@onready var turmite_color_picker: ColorPickerButton = ColorPickerButton.new()
 
 func _ready() -> void:
+    set_process(true)
     build_ui()
-    setup_upgrades()
-    update_ops_capacity()
-    smoothed_demand = calculate_target_demand()
-    refresh_ui()
+    update_grid_size()
+    render_grid()
 
 func build_ui() -> void:
-    var margin: MarginContainer = MarginContainer.new()
-    margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-    margin.offset_left = 32
-    margin.offset_top = 20
-    margin.offset_right = -32
-    margin.offset_bottom = -20
-    add_child(margin)
+    var root: HBoxContainer = HBoxContainer.new()
+    root.set_anchors_preset(Control.PRESET_FULL_RECT)
+    root.add_theme_constant_override("separation", 8)
+    add_child(root)
 
-    var root: VBoxContainer = VBoxContainer.new()
-    root.add_theme_constant_override("separation", 14)
-    margin.add_child(root)
+    var sidebar: PanelContainer = PanelContainer.new()
+    sidebar.custom_minimum_size = Vector2(260, 0)
+    sidebar.size_flags_horizontal = Control.SIZE_FILL
+    sidebar.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    root.add_child(sidebar)
+
+    var sidebar_layout: VBoxContainer = VBoxContainer.new()
+    sidebar_layout.add_theme_constant_override("separation", 10)
+    sidebar.add_child(sidebar_layout)
 
     var title: Label = Label.new()
-    title.text = "Universal Paperclips"
-    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-    title.add_theme_font_size_override("font_size", 28)
-    root.add_child(title)
+    title.text = "Shader-friendly Cellular Automata"
+    title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+    title.add_theme_font_size_override("font_size", 18)
+    sidebar_layout.add_child(title)
 
-    var content_row: HBoxContainer = HBoxContainer.new()
-    content_row.add_theme_constant_override("separation", 20)
-    content_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    content_row.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    root.add_child(content_row)
+    var info_row: HBoxContainer = HBoxContainer.new()
+    info_row.add_theme_constant_override("separation", 6)
+    sidebar_layout.add_child(info_row)
 
-    var left_column: VBoxContainer = VBoxContainer.new()
-    left_column.add_theme_constant_override("separation", 12)
-    left_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    left_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    content_row.add_child(left_column)
+    info_label.text = "Grid ready"
+    info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+    info_row.add_child(info_label)
 
-    var stats_box: GridContainer = GridContainer.new()
-    stats_box.columns = 2
-    stats_box.add_theme_constant_override("h_separation", 12)
-    stats_box.add_theme_constant_override("v_separation", 6)
-    left_column.add_child(stats_box)
+    var play_button: Button = Button.new()
+    play_button.text = "Play" if is_paused else "Pause"
+    play_button.pressed.connect(func() -> void:
+        is_paused = !is_paused
+        play_button.text = "Play" if is_paused else "Pause"
+    )
+    info_row.add_child(play_button)
 
-    add_stat_row(stats_box, "Clips made", "total")
-    add_stat_row(stats_box, "Unsold inventory", "inventory")
-    add_stat_row(stats_box, "Clip price", "price")
-    add_stat_row(stats_box, "Funds", "funds")
-    add_stat_row(stats_box, "Wire", "wire")
-    add_stat_row(stats_box, "Clips / second", "production")
-    add_stat_row(stats_box, "Marketing level", "marketing")
-    add_stat_row(stats_box, "AutoClippers", "autoclippers")
+    var step_button: Button = Button.new()
+    step_button.text = "Step"
+    step_button.pressed.connect(func() -> void:
+        step_requested = true
+    )
+    info_row.add_child(step_button)
 
-    var make_row: HBoxContainer = HBoxContainer.new()
-    make_row.add_theme_constant_override("separation", 8)
-    left_column.add_child(make_row)
+    var scroll: ScrollContainer = ScrollContainer.new()
+    scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    sidebar_layout.add_child(scroll)
 
-    var make_button: Button = Button.new()
-    make_button.text = "Make paperclip"
-    make_button.pressed.connect(_on_make_clip_pressed)
-    buttons["make"] = make_button
-    make_row.add_child(make_button)
+    var controls_column: VBoxContainer = VBoxContainer.new()
+    controls_column.add_theme_constant_override("separation", 8)
+    scroll.add_child(controls_column)
 
-    var auto_button: Button = Button.new()
-    auto_button.pressed.connect(_on_buy_autoclipper_pressed)
-    auto_button.visible = false
-    buttons["autoclipper"] = auto_button
-    make_row.add_child(auto_button)
+    controls_column.add_child(build_collapsible_section("Grid", build_grid_controls()))
+    controls_column.add_child(build_collapsible_section("Export", build_export_controls()))
+    controls_column.add_child(build_collapsible_section("Wolfram", build_wolfram_controls()))
+    controls_column.add_child(build_collapsible_section("Langton's Ant", build_ant_controls()))
+    controls_column.add_child(build_collapsible_section("Turmite", build_turmite_controls()))
+    controls_column.add_child(build_collapsible_section("Game of Life", build_gol_controls()))
+    controls_column.add_child(build_collapsible_section("Day & Night", build_day_night_controls()))
+    controls_column.add_child(build_collapsible_section("Seeds", build_seeds_controls()))
 
-    var wire_button: Button = Button.new()
-    wire_button.pressed.connect(_on_buy_wire_pressed)
-    buttons["wire"] = wire_button
-    make_row.add_child(wire_button)
+    view_container = Panel.new()
+    view_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    view_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    view_container.custom_minimum_size = Vector2(200, 200)
+    root.add_child(view_container)
 
-    var price_box: HBoxContainer = HBoxContainer.new()
-    price_box.alignment = BoxContainer.ALIGNMENT_CENTER
-    price_box.add_theme_constant_override("separation", 6)
-    left_column.add_child(price_box)
+    grid_view.stretch_mode = TextureRect.STRETCH_SCALE
+    grid_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+    grid_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    grid_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
+    grid_view.set_anchors_preset(Control.PRESET_FULL_RECT)
+    grid_view.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+    grid_view.modulate = Color.WHITE
+    view_container.add_child(grid_view)
 
-    var price_label: Label = Label.new()
-    price_label.text = "Adjust price"
-    price_box.add_child(price_label)
+    ui_ready = true
 
-    var minus_button: Button = Button.new()
-    minus_button.text = "-"
-    minus_button.focus_mode = Control.FOCUS_NONE
-    minus_button.custom_minimum_size = Vector2(38, 28)
-    minus_button.pressed.connect(func(): adjust_price(-PRICE_STEP))
-    buttons["price_down"] = minus_button
-    price_box.add_child(minus_button)
+func build_collapsible_section(title: String, content: Control) -> VBoxContainer:
+    var wrapper: VBoxContainer = VBoxContainer.new()
+    wrapper.add_theme_constant_override("separation", 4)
 
-    var plus_button: Button = Button.new()
-    plus_button.text = "+"
-    plus_button.focus_mode = Control.FOCUS_NONE
-    plus_button.custom_minimum_size = Vector2(38, 28)
-    plus_button.pressed.connect(func(): adjust_price(PRICE_STEP))
-    buttons["price_up"] = plus_button
-    price_box.add_child(plus_button)
+    var header: Button = Button.new()
+    header.text = title
+    header.toggle_mode = true
+    header.button_pressed = false
+    wrapper.add_child(header)
 
-    var marketing_row: HBoxContainer = HBoxContainer.new()
-    marketing_row.add_theme_constant_override("separation", 8)
-    left_column.add_child(marketing_row)
+    var holder: VBoxContainer = VBoxContainer.new()
+    holder.add_theme_constant_override("separation", 6)
+    holder.add_child(content)
+    holder.visible = header.button_pressed
+    wrapper.add_child(holder)
 
-    var marketing_button: Button = Button.new()
-    marketing_button.pressed.connect(_on_buy_marketing_pressed)
-    buttons["marketing"] = marketing_button
-    marketing_row.add_child(marketing_button)
+    header.toggled.connect(func(pressed: bool) -> void:
+        holder.visible = pressed
+    )
 
-    var demand_label: Label = Label.new()
-    demand_label.text = "Demand: -- clips / sec"
-    labels["demand"] = demand_label
-    marketing_row.add_child(demand_label)
+    return wrapper
 
-    computing_panel = VBoxContainer.new()
-    computing_panel.add_theme_constant_override("separation", 6)
-    computing_panel.visible = false
-    left_column.add_child(computing_panel)
+func build_grid_controls() -> VBoxContainer:
+    var box: VBoxContainer = VBoxContainer.new()
+    box.add_theme_constant_override("separation", 6)
 
-    var computing_title: Label = Label.new()
-    computing_title.text = "Computing"
-    computing_title.add_theme_font_size_override("font_size", 18)
-    computing_panel.add_child(computing_title)
+    var size_row: HBoxContainer = HBoxContainer.new()
+    var size_label: Label = Label.new()
+    size_label.text = "Cell size"
+    size_row.add_child(size_label)
+    cell_size_spin.min_value = 1
+    cell_size_spin.max_value = 128
+    cell_size_spin.value = cell_size
+    cell_size_spin.step = 1
+    cell_size_spin.value_changed.connect(func(value: float) -> void:
+        cell_size = int(value)
+        update_grid_size()
+        render_grid()
+    )
+    size_row.add_child(cell_size_spin)
+    box.add_child(size_row)
 
-    add_simple_row(computing_panel, "Processors", "processors")
-    add_simple_row(computing_panel, "Memory", "memory")
-    add_simple_row(computing_panel, "Operations", "ops")
+    var global_rate_row: HBoxContainer = HBoxContainer.new()
+    var global_rate_label: Label = Label.new()
+    global_rate_label.text = "Updates/sec"
+    global_rate_row.add_child(global_rate_label)
+    var global_rate_spin: SpinBox = SpinBox.new()
+    global_rate_spin.min_value = 0.0
+    global_rate_spin.max_value = 5000.0
+    global_rate_spin.step = 0.1
+    global_rate_spin.allow_greater = true
+    global_rate_spin.value = global_rate
+    global_rate_spin.value_changed.connect(func(v: float) -> void: global_rate = max(0.0, v))
+    global_rate_row.add_child(global_rate_spin)
+    box.add_child(global_rate_row)
 
-    var computing_buttons: HBoxContainer = HBoxContainer.new()
-    computing_buttons.add_theme_constant_override("separation", 8)
-    computing_panel.add_child(computing_buttons)
+    var edge_row: HBoxContainer = HBoxContainer.new()
+    var edge_label: Label = Label.new()
+    edge_label.text = "Edges"
+    edge_row.add_child(edge_label)
+    edge_option.add_item("Wrap", EDGE_WRAP)
+    edge_option.add_item("Bounce", EDGE_BOUNCE)
+    edge_option.add_item("Fall off", EDGE_FALLOFF)
+    edge_option.selected = EDGE_WRAP
+    edge_option.item_selected.connect(func(index: int) -> void: edge_mode = index)
+    edge_row.add_child(edge_option)
+    box.add_child(edge_row)
 
-    var buy_processor_button: Button = Button.new()
-    buy_processor_button.pressed.connect(_on_buy_processor_pressed)
-    buttons["processor"] = buy_processor_button
-    computing_buttons.add_child(buy_processor_button)
+    var color_row: HBoxContainer = HBoxContainer.new()
+    var color_label: Label = Label.new()
+    color_label.text = "Alive / Dead"
+    color_row.add_child(color_label)
+    alive_picker.color = alive_color
+    alive_picker.color_changed.connect(func(c: Color) -> void: alive_color = c; render_grid())
+    dead_picker.color = dead_color
+    dead_picker.color_changed.connect(func(c: Color) -> void: dead_color = c; render_grid())
+    color_row.add_child(alive_picker)
+    color_row.add_child(dead_picker)
+    box.add_child(color_row)
 
-    var buy_memory_button: Button = Button.new()
-    buy_memory_button.pressed.connect(_on_buy_memory_pressed)
-    buttons["memory"] = buy_memory_button
-    computing_buttons.add_child(buy_memory_button)
+    var fill_row: HBoxContainer = HBoxContainer.new()
+    var fill_label: Label = Label.new()
+    fill_label.text = "Seed %"
+    fill_row.add_child(fill_label)
+    fill_spin.min_value = 0
+    fill_spin.max_value = 100
+    fill_spin.step = 1
+    fill_spin.value = seed_fill * 100.0
+    fill_spin.value_changed.connect(func(v: float) -> void: seed_fill = float(v) / 100.0)
+    fill_row.add_child(fill_spin)
+    var seed_button: Button = Button.new()
+    seed_button.text = "Randomize"
+    seed_button.pressed.connect(func() -> void: random_fill_grid(); render_grid())
+    fill_row.add_child(seed_button)
+    box.add_child(fill_row)
 
-    var log_label: Label = Label.new()
-    log_label.text = "First phase: build clips, manage wire, set prices, invest in computing, and buy marketing, AutoClippers, and upgrades."
-    log_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-    left_column.add_child(log_label)
+    var clear_button: Button = Button.new()
+    clear_button.text = "Clear"
+    clear_button.pressed.connect(func() -> void:
+        grid.fill(0)
+        clear_ants()
+        clear_turmites()
+        render_grid()
+    )
+    box.add_child(clear_button)
 
-    var right_column: VBoxContainer = VBoxContainer.new()
-    right_column.add_theme_constant_override("separation", 10)
-    right_column.size_flags_horizontal = Control.SIZE_FILL
-    right_column.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    content_row.add_child(right_column)
+    return box
 
-    var upgrade_panel: VBoxContainer = VBoxContainer.new()
-    upgrade_panel.add_theme_constant_override("separation", 6)
-    upgrade_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    right_column.add_child(upgrade_panel)
+func build_export_controls() -> VBoxContainer:
+    var box: VBoxContainer = VBoxContainer.new()
+    box.add_theme_constant_override("separation", 6)
 
-    var upgrade_title: Label = Label.new()
-    upgrade_title.text = "Upgrades"
-    upgrade_title.add_theme_font_size_override("font_size", 18)
-    upgrade_panel.add_child(upgrade_title)
+    var pattern_row: HBoxContainer = HBoxContainer.new()
+    var pattern_label: Label = Label.new()
+    pattern_label.text = "Filename"
+    pattern_row.add_child(pattern_label)
+    export_pattern_edit.text = export_pattern
+    export_pattern_edit.placeholder_text = "user://screenshot####.png"
+    export_pattern_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    export_pattern_edit.text_changed.connect(func(text: String) -> void:
+        export_pattern = text
+    )
+    pattern_row.add_child(export_pattern_edit)
+    box.add_child(pattern_row)
 
-    var upgrade_scroll: ScrollContainer = ScrollContainer.new()
-    upgrade_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    upgrade_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    upgrade_scroll.custom_minimum_size = Vector2(360, 420)
-    upgrade_panel.add_child(upgrade_scroll)
+    var export_row: HBoxContainer = HBoxContainer.new()
+    var export_button: Button = Button.new()
+    export_button.text = "Export PNG"
+    export_button.pressed.connect(func() -> void: export_grid_image())
+    export_row.add_child(export_button)
+    var hint: Label = Label.new()
+    hint.text = "Use # for numbering"
+    export_row.add_child(hint)
+    box.add_child(export_row)
 
-    var upgrade_container: VBoxContainer = VBoxContainer.new()
-    upgrade_container.add_theme_constant_override("separation", 6)
-    upgrade_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    upgrade_scroll.add_child(upgrade_container)
-    for key: String in UPGRADE_KEYS:
-        var button: Button = Button.new()
-        upgrade_buttons[key] = button
-        button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-        button.pressed.connect(func(): _on_upgrade_pressed(key))
-        upgrade_container.add_child(button)
+    return box
 
-func add_stat_row(container: GridContainer, title: String, key: String) -> void:
-    var label: Label = Label.new()
-    label.text = title
-    container.add_child(label)
+func build_wolfram_controls() -> VBoxContainer:
+    var box: VBoxContainer = VBoxContainer.new()
+    box.add_theme_constant_override("separation", 6)
 
-    var value: Label = Label.new()
-    value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-    labels[key] = value
-    container.add_child(value)
+    var rule_row: HBoxContainer = HBoxContainer.new()
+    var rule_label: Label = Label.new()
+    rule_label.text = "Rule"
+    rule_row.add_child(rule_label)
+    rule_spin.min_value = 0
+    rule_spin.max_value = 255
+    rule_spin.value = wolfram_rule
+    rule_spin.value_changed.connect(func(v: float) -> void: wolfram_rule = int(v))
+    rule_row.add_child(rule_spin)
+    box.add_child(rule_row)
 
-func add_simple_row(container: VBoxContainer, title: String, key: String) -> void:
-    var row: HBoxContainer = HBoxContainer.new()
-    row.add_theme_constant_override("separation", 6)
-    container.add_child(row)
+    var rate_row: HBoxContainer = HBoxContainer.new()
+    var rate_label: Label = Label.new()
+    rate_label.text = "Steps/sec"
+    rate_row.add_child(rate_label)
+    wolfram_rate_spin.min_value = 0.0
+    wolfram_rate_spin.max_value = 200.0
+    wolfram_rate_spin.step = 0.01
+    wolfram_rate_spin.value = wolfram_rate
+    wolfram_rate_spin.allow_greater = true
+    wolfram_rate_spin.value_changed.connect(func(v: float) -> void: wolfram_rate = max(0.0, v))
+    rate_row.add_child(wolfram_rate_spin)
+    box.add_child(rate_row)
 
-    var label: Label = Label.new()
-    label.text = title
-    row.add_child(label)
+    var buttons: HBoxContainer = HBoxContainer.new()
+    var toggle: CheckBox = CheckBox.new()
+    toggle.text = "Auto"
+    toggle.button_pressed = wolfram_enabled
+    toggle.toggled.connect(func(v: bool) -> void: wolfram_enabled = v)
+    buttons.add_child(toggle)
+    var step: Button = Button.new()
+    step.text = "Step"
+    step.pressed.connect(func() -> void: step_wolfram(); render_grid())
+    buttons.add_child(step)
+    box.add_child(buttons)
 
-    var value: Label = Label.new()
-    value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-    value.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    labels[key] = value
-    row.add_child(value)
+    var seed_row: HBoxContainer = HBoxContainer.new()
+    var random_seed: Button = Button.new()
+    random_seed.text = "Seed top row"
+    random_seed.pressed.connect(func() -> void: seed_wolfram_row(true); render_grid())
+    seed_row.add_child(random_seed)
+    var center_seed: Button = Button.new()
+    center_seed.text = "Center dot"
+    center_seed.pressed.connect(func() -> void: seed_wolfram_row(false); render_grid())
+    seed_row.add_child(center_seed)
+    box.add_child(seed_row)
 
-func setup_upgrades() -> void:
-    upgrades.append_array([
-        create_upgrade("analytics_1", "Sales analytics I", "+0.15 base demand", 120, 2000, "", func(): demand_bonus += 0.15),
-        create_upgrade("analytics_2", "Sales analytics II", "+0.20 base demand", 220, 25000, "analytics_1", func(): demand_bonus += 0.2),
-        create_upgrade("analytics_3", "Sales analytics III", "+0.25 base demand", 320, 150000, "analytics_2", func(): demand_bonus += 0.25),
-        create_upgrade("efficiency_1", "Clipper efficiency I", "+10% AutoClipper speed", 180, 10000, "", func(): clipper_rate_bonus += 0.1),
-        create_upgrade("efficiency_2", "Clipper efficiency II", "+12% AutoClipper speed", 260, 125000, "efficiency_1", func(): clipper_rate_bonus += 0.12),
-        create_upgrade("efficiency_3", "Clipper efficiency III", "+15% AutoClipper speed", 360, 750000, "efficiency_2", func(): clipper_rate_bonus += 0.15),
-        create_upgrade("bulk_wire_1", "Bulk wire spool I", "+250 wire per purchase", 150, 6000, "", func(): wire_per_purchase += 250),
-        create_upgrade("bulk_wire_2", "Bulk wire spool II", "+500 wire per purchase", 240, 110000, "bulk_wire_1", func(): wire_per_purchase += 500),
-        create_upgrade("marketing_insight_1", "Marketing insight I", "-10% marketing costs", 200, 12000, "", func(): marketing_discount += 0.1),
-        create_upgrade("marketing_insight_2", "Marketing insight II", "-12% marketing costs", 320, 200000, "marketing_insight_1", func(): marketing_discount += 0.12),
-        create_upgrade("price_optimizer", "Price optimizer", "Price shifts reduce demand less", 280, 1500000, "marketing_insight_2", Callable(self, "apply_price_optimizer")),
-        create_upgrade("processor_boost", "Processor boost", "+15% ops/sec", 240, 50000, "", func(): ops_rate_bonus += 0.15),
-        create_upgrade("memory_boost", "Memory boost", "+20 ops capacity", 210, 90000, "", Callable(self, "apply_memory_boost"))
-    ])
+    var fill_row: HBoxContainer = HBoxContainer.new()
+    var fill_button: Button = Button.new()
+    fill_button.text = "Fill screen"
+    fill_button.pressed.connect(func() -> void:
+        fill_wolfram_screen()
+        render_grid()
+    )
+    fill_row.add_child(fill_button)
+    box.add_child(fill_row)
 
-func apply_price_optimizer() -> void:
-    price_sensitivity = max(0.6, price_sensitivity - 0.15)
-    demand_bonus += 0.05
+    return box
 
-func apply_memory_boost() -> void:
-    ops_capacity_bonus += 20
-    update_ops_capacity()
+func build_ant_controls() -> VBoxContainer:
+    var box: VBoxContainer = VBoxContainer.new()
+    box.add_theme_constant_override("separation", 6)
 
-func create_upgrade(key: String, label: String, description: String, ops_cost: int, unlock_at_clips: int, prerequisite: String, effect: Callable) -> Upgrade:
-    var upgrade: Upgrade = Upgrade.new()
-    upgrade.key = key
-    upgrade.label = label
-    upgrade.description = description
-    upgrade.ops_cost = ops_cost
-    upgrade.effect = effect
-    upgrade.unlock_at_clips = unlock_at_clips
-    upgrade.prerequisite = prerequisite
-    return upgrade
+    var count_row: HBoxContainer = HBoxContainer.new()
+    var count_label: Label = Label.new()
+    count_label.text = "Ants"
+    count_row.add_child(count_label)
+    ant_count_spin.min_value = 1
+    ant_count_spin.max_value = 200
+    ant_count_spin.value = 10
+    count_row.add_child(ant_count_spin)
+    ant_color_picker.color = Color(1, 0, 0)
+    count_row.add_child(ant_color_picker)
+    var spawn: Button = Button.new()
+    spawn.text = "Spawn"
+    spawn.pressed.connect(func() -> void: spawn_ants(int(ant_count_spin.value), ant_color_picker.color))
+    count_row.add_child(spawn)
+    box.add_child(count_row)
+
+    var rate_row: HBoxContainer = HBoxContainer.new()
+    var rate_label: Label = Label.new()
+    rate_label.text = "Steps/sec"
+    rate_row.add_child(rate_label)
+    ant_rate_spin.min_value = 0.0
+    ant_rate_spin.max_value = 500.0
+    ant_rate_spin.step = 0.01
+    ant_rate_spin.value = ant_rate
+    ant_rate_spin.allow_greater = true
+    ant_rate_spin.value_changed.connect(func(v: float) -> void: ant_rate = max(0.0, v))
+    rate_row.add_child(ant_rate_spin)
+    box.add_child(rate_row)
+
+    var buttons: HBoxContainer = HBoxContainer.new()
+    var toggle: CheckBox = CheckBox.new()
+    toggle.text = "Auto"
+    toggle.button_pressed = ants_enabled
+    toggle.toggled.connect(func(v: bool) -> void: ants_enabled = v)
+    buttons.add_child(toggle)
+    var step: Button = Button.new()
+    step.text = "Step"
+    step.pressed.connect(func() -> void: step_ants(); render_grid())
+    buttons.add_child(step)
+    box.add_child(buttons)
+
+    var clear_row: HBoxContainer = HBoxContainer.new()
+    var clear_button: Button = Button.new()
+    clear_button.text = "Clear ants"
+    clear_button.pressed.connect(func() -> void: clear_ants(); render_grid())
+    clear_row.add_child(clear_button)
+    box.add_child(clear_row)
+
+    return box
+
+func build_gol_controls() -> VBoxContainer:
+    var box: VBoxContainer = VBoxContainer.new()
+    box.add_theme_constant_override("separation", 6)
+
+    var rate_row: HBoxContainer = HBoxContainer.new()
+    var rate_label: Label = Label.new()
+    rate_label.text = "Steps/sec"
+    rate_row.add_child(rate_label)
+    gol_rate_spin.min_value = 0.0
+    gol_rate_spin.max_value = 120.0
+    gol_rate_spin.step = 0.001
+    gol_rate_spin.value = gol_rate
+    gol_rate_spin.allow_greater = true
+    gol_rate_spin.value_changed.connect(func(v: float) -> void: gol_rate = max(0.0, v))
+    rate_row.add_child(gol_rate_spin)
+    box.add_child(rate_row)
+
+    var chain_row: HBoxContainer = HBoxContainer.new()
+    var chain_label: Label = Label.new()
+    chain_label.text = "Every N ant steps"
+    chain_row.add_child(chain_label)
+    var chain_toggle: CheckBox = CheckBox.new()
+    chain_toggle.button_pressed = gol_trigger_from_ants
+    chain_toggle.toggled.connect(func(v: bool) -> void:
+        gol_trigger_from_ants = v
+        gol_every_spin.editable = v
+    )
+    chain_row.add_child(chain_toggle)
+    gol_every_spin.min_value = 1
+    gol_every_spin.max_value = 10000
+    gol_every_spin.step = 1
+    gol_every_spin.value = gol_every_ant_steps
+    gol_every_spin.value_changed.connect(func(v: float) -> void: gol_every_ant_steps = int(v))
+    gol_every_spin.editable = gol_trigger_from_ants
+    chain_row.add_child(gol_every_spin)
+    box.add_child(chain_row)
+
+    var buttons: HBoxContainer = HBoxContainer.new()
+    var toggle: CheckBox = CheckBox.new()
+    toggle.text = "Auto"
+    toggle.button_pressed = gol_enabled
+    toggle.toggled.connect(func(v: bool) -> void: gol_enabled = v)
+    buttons.add_child(toggle)
+    var step: Button = Button.new()
+    step.text = "Step"
+    step.pressed.connect(func() -> void: step_game_of_life(); render_grid())
+    buttons.add_child(step)
+    box.add_child(buttons)
+
+    return box
+
+func build_day_night_controls() -> VBoxContainer:
+    var box: VBoxContainer = VBoxContainer.new()
+    box.add_theme_constant_override("separation", 6)
+
+    var rate_row: HBoxContainer = HBoxContainer.new()
+    var rate_label: Label = Label.new()
+    rate_label.text = "Steps/sec"
+    rate_row.add_child(rate_label)
+    day_night_rate_spin.min_value = 0.0
+    day_night_rate_spin.max_value = 120.0
+    day_night_rate_spin.step = 0.001
+    day_night_rate_spin.value = day_night_rate
+    day_night_rate_spin.allow_greater = true
+    day_night_rate_spin.value_changed.connect(func(v: float) -> void: day_night_rate = max(0.0, v))
+    rate_row.add_child(day_night_rate_spin)
+    box.add_child(rate_row)
+
+    var buttons: HBoxContainer = HBoxContainer.new()
+    var toggle: CheckBox = CheckBox.new()
+    toggle.text = "Auto"
+    toggle.button_pressed = day_night_enabled
+    toggle.toggled.connect(func(v: bool) -> void: day_night_enabled = v)
+    buttons.add_child(toggle)
+    var step: Button = Button.new()
+    step.text = "Step"
+    step.pressed.connect(func() -> void: step_day_night(); render_grid())
+    buttons.add_child(step)
+    box.add_child(buttons)
+
+    return box
+
+func build_seeds_controls() -> VBoxContainer:
+    var box: VBoxContainer = VBoxContainer.new()
+    box.add_theme_constant_override("separation", 6)
+
+    var rate_row: HBoxContainer = HBoxContainer.new()
+    var rate_label: Label = Label.new()
+    rate_label.text = "Steps/sec"
+    rate_row.add_child(rate_label)
+    seeds_rate_spin.min_value = 0.0
+    seeds_rate_spin.max_value = 120.0
+    seeds_rate_spin.step = 0.001
+    seeds_rate_spin.value = seeds_rate
+    seeds_rate_spin.allow_greater = true
+    seeds_rate_spin.value_changed.connect(func(v: float) -> void: seeds_rate = max(0.0, v))
+    rate_row.add_child(seeds_rate_spin)
+    box.add_child(rate_row)
+
+    var buttons: HBoxContainer = HBoxContainer.new()
+    var toggle: CheckBox = CheckBox.new()
+    toggle.text = "Auto"
+    toggle.button_pressed = seeds_enabled
+    toggle.toggled.connect(func(v: bool) -> void: seeds_enabled = v)
+    buttons.add_child(toggle)
+    var step: Button = Button.new()
+    step.text = "Step"
+    step.pressed.connect(func() -> void: step_seeds(); render_grid())
+    buttons.add_child(step)
+    box.add_child(buttons)
+
+    return box
+
+func build_turmite_controls() -> VBoxContainer:
+    var box: VBoxContainer = VBoxContainer.new()
+    box.add_theme_constant_override("separation", 6)
+
+    var rule_row: HBoxContainer = HBoxContainer.new()
+    var rule_label: Label = Label.new()
+    rule_label.text = "Rule"
+    rule_row.add_child(rule_label)
+    turmite_rule_option.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    turmite_rule_option.focus_mode = Control.FOCUS_CLICK
+    turmite_rule_option.clear()
+    for preset in TURMITE_RULE_PRESETS:
+        turmite_rule_option.add_item(preset)
+    turmite_rule_option.select(max(0, TURMITE_RULE_PRESETS.find(turmite_rule)))
+    turmite_rule_option.item_selected.connect(func(index: int) -> void:
+        var choice: String = TURMITE_RULE_PRESETS[index]
+        turmite_rule = choice
+    )
+    rule_row.add_child(turmite_rule_option)
+    box.add_child(rule_row)
+
+    var spawn_row: HBoxContainer = HBoxContainer.new()
+    var count_label: Label = Label.new()
+    count_label.text = "Turmites"
+    spawn_row.add_child(count_label)
+    turmite_count_spin.min_value = 1
+    turmite_count_spin.max_value = 200
+    turmite_count_spin.value = turmite_count
+    turmite_count_spin.step = 1
+    turmite_count_spin.value_changed.connect(func(v: float) -> void: turmite_count = int(v))
+    spawn_row.add_child(turmite_count_spin)
+    turmite_color_picker.color = Color(0, 0.6, 1)
+    spawn_row.add_child(turmite_color_picker)
+    var spawn_button: Button = Button.new()
+    spawn_button.text = "Spawn"
+    spawn_button.pressed.connect(func() -> void: spawn_turmites(turmite_count, turmite_color_picker.color))
+    spawn_row.add_child(spawn_button)
+    box.add_child(spawn_row)
+
+    var rate_row: HBoxContainer = HBoxContainer.new()
+    var rate_label: Label = Label.new()
+    rate_label.text = "Steps/sec"
+    rate_row.add_child(rate_label)
+    turmite_rate_spin.min_value = 0.0
+    turmite_rate_spin.max_value = 500.0
+    turmite_rate_spin.step = 0.01
+    turmite_rate_spin.value = turmite_rate
+    turmite_rate_spin.allow_greater = true
+    turmite_rate_spin.value_changed.connect(func(v: float) -> void: turmite_rate = max(0.0, v))
+    rate_row.add_child(turmite_rate_spin)
+    box.add_child(rate_row)
+
+    var buttons: HBoxContainer = HBoxContainer.new()
+    var toggle: CheckBox = CheckBox.new()
+    toggle.text = "Auto"
+    toggle.button_pressed = turmite_enabled
+    toggle.toggled.connect(func(v: bool) -> void: turmite_enabled = v)
+    buttons.add_child(toggle)
+    var step: Button = Button.new()
+    step.text = "Step"
+    step.pressed.connect(func() -> void: step_turmites(); render_grid())
+    buttons.add_child(step)
+    var clear_button: Button = Button.new()
+    clear_button.text = "Clear"
+    clear_button.pressed.connect(func() -> void:
+        clear_turmites()
+        render_grid()
+    )
+    buttons.add_child(clear_button)
+    box.add_child(buttons)
+
+    return box
+
+func update_grid_size() -> void:
+    if not ui_ready:
+        return
+    var viewport_size: Vector2i = Vector2i(view_container.get_rect().size) if view_container != null else Vector2i(get_viewport_rect().size)
+    if viewport_size.x <= 0 or viewport_size.y <= 0:
+        viewport_size = Vector2i(get_viewport_rect().size)
+    if viewport_size.x <= 0 or viewport_size.y <= 0:
+        return
+    var new_size: Vector2i = Vector2i(max(1, viewport_size.x / cell_size), max(1, viewport_size.y / cell_size))
+    var size_changed: bool = new_size != grid_size or grid.size() != new_size.x * new_size.y
+    grid_size = new_size
+
+    if size_changed:
+        grid.resize(grid_size.x * grid_size.y)
+        grid.fill(0)
+        wolfram_row = 0
+        clear_ants()
+        clear_turmites()
+    info_label.text = "Grid: %dx%d cells @ %d px" % [grid_size.x, grid_size.y, cell_size]
+
+func random_fill_grid() -> void:
+    var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+    rng.randomize()
+    for i in range(grid.size()):
+        if rng.randf() < seed_fill:
+            grid[i] = 1
+        else:
+            grid[i] = 0
+    wolfram_row = 0
+
+func seed_wolfram_row(randomize: bool) -> void:
+    var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+    rng.randomize()
+    grid.fill(0)
+    var top_row: int = 0
+    for x in range(grid_size.x):
+        var idx: int = top_row * grid_size.x + x
+        grid[idx] = 1 if (randomize and rng.randf() < seed_fill) else 0
+    if not randomize and grid_size.x > 0:
+        var center: int = grid_size.x / 2
+        grid[top_row * grid_size.x + center] = 1
+    wolfram_row = 1
+
+func spawn_ants(count: int, color: Color) -> void:
+    var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+    rng.randomize()
+    for i in range(count):
+        ants.append(Vector2i(rng.randi_range(0, grid_size.x - 1), rng.randi_range(0, grid_size.y - 1)))
+        ant_directions.append(rng.randi_range(0, DIRS.size() - 1))
+        ant_colors.append(color)
+    render_grid()
+
+func clear_ants() -> void:
+    ants.clear()
+    ant_directions.clear()
+    ant_colors.clear()
+    ant_step_counter = 0
+
+func wrap_position(pos: Vector2i) -> Vector2i:
+    return Vector2i(posmod(pos.x, grid_size.x), posmod(pos.y, grid_size.y))
+
+func sample_cell(pos: Vector2i) -> int:
+    if pos.x >= 0 and pos.x < grid_size.x and pos.y >= 0 and pos.y < grid_size.y:
+        return grid[pos.y * grid_size.x + pos.x]
+
+    match edge_mode:
+        EDGE_WRAP:
+            pos = wrap_position(pos)
+            return grid[pos.y * grid_size.x + pos.x]
+        EDGE_BOUNCE:
+            var bounce_pos: Vector2i = pos
+            if bounce_pos.x < 0:
+                bounce_pos.x = -bounce_pos.x - 1
+            elif bounce_pos.x >= grid_size.x:
+                bounce_pos.x = grid_size.x - (bounce_pos.x - grid_size.x) - 1
+            if bounce_pos.y < 0:
+                bounce_pos.y = -bounce_pos.y - 1
+            elif bounce_pos.y >= grid_size.y:
+                bounce_pos.y = grid_size.y - (bounce_pos.y - grid_size.y) - 1
+            bounce_pos.x = clamp(bounce_pos.x, 0, grid_size.x - 1)
+            bounce_pos.y = clamp(bounce_pos.y, 0, grid_size.y - 1)
+            return grid[bounce_pos.y * grid_size.x + bounce_pos.x]
+        EDGE_FALLOFF:
+            return 0
+    return 0
+
+func set_cell(pos: Vector2i, value: int) -> void:
+    if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
+        return
+    grid[pos.y * grid_size.x + pos.x] = clamp(value, 0, 1)
+
+func process_wolfram(delta: float) -> bool:
+    if not wolfram_enabled or wolfram_rate <= 0.0:
+        return false
+    wolfram_accumulator += delta
+    var interval: float = 1.0 / wolfram_rate
+    var stepped: bool = false
+    while wolfram_accumulator >= interval:
+        step_wolfram()
+        wolfram_accumulator -= interval
+        stepped = true
+    return stepped
+
+func process_ants(delta: float) -> bool:
+    if not ants_enabled or ant_rate <= 0.0:
+        return false
+    ant_accumulator += delta
+    var interval: float = 1.0 / ant_rate
+    var stepped: bool = false
+    while ant_accumulator >= interval:
+        step_ants()
+        ant_accumulator -= interval
+        stepped = true
+    return stepped
+
+func process_game_of_life(delta: float) -> bool:
+    if not gol_enabled or gol_rate <= 0.0:
+        return false
+    gol_accumulator += delta
+    var interval: float = 1.0 / gol_rate
+    var stepped: bool = false
+    while gol_accumulator >= interval:
+        step_game_of_life()
+        gol_accumulator -= interval
+        stepped = true
+    return stepped
+
+func process_day_night(delta: float) -> bool:
+    if not day_night_enabled or day_night_rate <= 0.0:
+        return false
+    day_night_accumulator += delta
+    var interval: float = 1.0 / day_night_rate
+    var stepped: bool = false
+    while day_night_accumulator >= interval:
+        step_day_night()
+        day_night_accumulator -= interval
+        stepped = true
+    return stepped
+
+func process_seeds(delta: float) -> bool:
+    if not seeds_enabled or seeds_rate <= 0.0:
+        return false
+    seeds_accumulator += delta
+    var interval: float = 1.0 / seeds_rate
+    var stepped: bool = false
+    while seeds_accumulator >= interval:
+        step_seeds()
+        seeds_accumulator -= interval
+        stepped = true
+    return stepped
+
+func process_turmites(delta: float) -> bool:
+    if not turmite_enabled or turmite_rate <= 0.0:
+        return false
+    turmite_accumulator += delta
+    var interval: float = 1.0 / turmite_rate
+    var stepped: bool = false
+    while turmite_accumulator >= interval:
+        step_turmites()
+        turmite_accumulator -= interval
+        stepped = true
+    return stepped
+
+func step_wolfram(allow_wrap: bool = true) -> void:
+    if grid_size.y <= 0:
+        return
+    if allow_wrap and grid_size.y > 0:
+        wolfram_row = wolfram_row % grid_size.y
+    if wolfram_row >= grid_size.y and not allow_wrap:
+        return
+
+    var source_row: int = 0
+    if wolfram_row <= 0:
+        source_row = grid_size.y - 1 if allow_wrap else 0
+    else:
+        source_row = wolfram_row - 1
+    for x in range(grid_size.x):
+        var left: int = sample_cell(Vector2i(x - 1, source_row))
+        var center: int = sample_cell(Vector2i(x, source_row))
+        var right: int = sample_cell(Vector2i(x + 1, source_row))
+        var key: int = (left << 2) | (center << 1) | right
+        var state: int = (wolfram_rule >> key) & 1
+        set_cell(Vector2i(x, wolfram_row), state)
+    wolfram_row = (wolfram_row + 1) % grid_size.y if allow_wrap else wolfram_row + 1
+
+func fill_wolfram_screen() -> void:
+    if grid_size.y <= 0:
+        return
+    if wolfram_row <= 0:
+        wolfram_row = 1
+    var remaining: int = max(0, grid_size.y - wolfram_row)
+    for _i in range(remaining):
+        step_wolfram(false)
+    wolfram_enabled = false
+    wolfram_accumulator = 0.0
+
+func step_ants() -> void:
+    var remove_indices: Array[int] = []
+    for i in range(ants.size()):
+        var pos: Vector2i = ants[i]
+        if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
+            remove_indices.append(i)
+            continue
+
+        var idx: int = pos.y * grid_size.x + pos.x
+        var current: int = grid[idx]
+        if current == 1:
+            ant_directions[i] = (ant_directions[i] + 1) % DIRS.size()
+            grid[idx] = 0
+        else:
+            ant_directions[i] = (ant_directions[i] + DIRS.size() - 1) % DIRS.size()
+            grid[idx] = 1
+
+        var next: Vector2i = pos + DIRS[ant_directions[i]]
+        if edge_mode == EDGE_WRAP:
+            next = wrap_position(next)
+        elif edge_mode == EDGE_BOUNCE:
+            if next.x < 0 or next.x >= grid_size.x or next.y < 0 or next.y >= grid_size.y:
+                ant_directions[i] = (ant_directions[i] + 2) % DIRS.size()
+                next = pos + DIRS[ant_directions[i]]
+                next.x = clamp(next.x, 0, grid_size.x - 1)
+                next.y = clamp(next.y, 0, grid_size.y - 1)
+        elif edge_mode == EDGE_FALLOFF:
+            if next.x < 0 or next.x >= grid_size.x or next.y < 0 or next.y >= grid_size.y:
+                remove_indices.append(i)
+                continue
+        ants[i] = next
+
+    for j in range(remove_indices.size() - 1, -1, -1):
+        var idx: int = remove_indices[j]
+        ants.remove_at(idx)
+        ant_directions.remove_at(idx)
+        ant_colors.remove_at(idx)
+
+    ant_step_counter += 1
+    if gol_trigger_from_ants and gol_every_ant_steps > 0 and ant_step_counter % gol_every_ant_steps == 0:
+        step_game_of_life()
+
+func step_game_of_life() -> void:
+    step_totalistic([3], [2, 3])
+
+func step_day_night() -> void:
+    step_totalistic([3, 6, 7, 8], [3, 4, 6, 7, 8])
+
+func step_seeds() -> void:
+    step_totalistic([2], [])
+
+func step_totalistic(birth: Array[int], survive: Array[int]) -> void:
+    var next_state: PackedByteArray = PackedByteArray()
+    next_state.resize(grid.size())
+    var birth_set: Array[int] = birth
+    var survive_set: Array[int] = survive
+    for y in range(grid_size.y):
+        for x in range(grid_size.x):
+            var alive: int = sample_cell(Vector2i(x, y))
+            var neighbors: int = 0
+            for dy in range(-1, 2):
+                for dx in range(-1, 2):
+                    if dx == 0 and dy == 0:
+                        continue
+                    neighbors += sample_cell(Vector2i(x + dx, y + dy))
+            var new_val: int = 0
+            if alive == 1:
+                if survive_set.has(neighbors):
+                    new_val = 1
+            else:
+                if birth_set.has(neighbors):
+                    new_val = 1
+            next_state[y * grid_size.x + x] = new_val
+    grid = next_state
+
+func spawn_turmites(count: int, color: Color) -> void:
+    var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+    rng.randomize()
+    for _i in range(count):
+        turmites.append(Vector2i(rng.randi_range(0, grid_size.x - 1), rng.randi_range(0, grid_size.y - 1)))
+        turmite_directions.append(rng.randi_range(0, DIRS.size() - 1))
+        turmite_colors.append(color)
+    render_grid()
+
+func clear_turmites() -> void:
+    turmites.clear()
+    turmite_directions.clear()
+    turmite_colors.clear()
+
+func step_turmites() -> void:
+    var remove_indices: Array[int] = []
+    var rule_upper: String = turmite_rule.to_upper()
+    if rule_upper.length() < 2:
+        rule_upper = "RL"
+    for i in range(turmites.size()):
+        var pos: Vector2i = turmites[i]
+        if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
+            remove_indices.append(i)
+            continue
+
+        var idx: int = pos.y * grid_size.x + pos.x
+        var current: int = grid[idx]
+        var rule_idx: int = clamp(current, 0, rule_upper.length() - 1)
+        var turn: String = rule_upper[rule_idx]
+        if turn == "R":
+            turmite_directions[i] = (turmite_directions[i] + 1) % DIRS.size()
+        else:
+            turmite_directions[i] = (turmite_directions[i] + DIRS.size() - 1) % DIRS.size()
+
+        grid[idx] = 1 - current
+
+        var next: Vector2i = pos + DIRS[turmite_directions[i]]
+        if edge_mode == EDGE_WRAP:
+            next = wrap_position(next)
+        elif edge_mode == EDGE_BOUNCE:
+            if next.x < 0 or next.x >= grid_size.x or next.y < 0 or next.y >= grid_size.y:
+                turmite_directions[i] = (turmite_directions[i] + 2) % DIRS.size()
+                next = pos + DIRS[turmite_directions[i]]
+                next.x = clamp(next.x, 0, grid_size.x - 1)
+                next.y = clamp(next.y, 0, grid_size.y - 1)
+        elif edge_mode == EDGE_FALLOFF:
+            if next.x < 0 or next.x >= grid_size.x or next.y < 0 or next.y >= grid_size.y:
+                remove_indices.append(i)
+                continue
+
+        turmites[i] = next
+
+    for j in range(remove_indices.size() - 1, -1, -1):
+        var remove_idx: int = remove_indices[j]
+        turmites.remove_at(remove_idx)
+        turmite_directions.remove_at(remove_idx)
+        turmite_colors.remove_at(remove_idx)
+
+func build_grid_image() -> Image:
+    var img: Image = Image.create(grid_size.x * cell_size, grid_size.y * cell_size, false, Image.FORMAT_RGBA8)
+    var marker_map: Dictionary = {}
+    for i in range(ants.size()):
+        marker_map[ants[i]] = ant_colors[i]
+    for i in range(turmites.size()):
+        marker_map[turmites[i]] = turmite_colors[i]
+    for y in range(grid_size.y):
+        for x in range(grid_size.x):
+            var color: Color = dead_color if grid[y * grid_size.x + x] == 0 else alive_color
+            if marker_map.has(Vector2i(x, y)):
+                color = marker_map[Vector2i(x, y)]
+            for oy in range(cell_size):
+                for ox in range(cell_size):
+                    img.set_pixel(x * cell_size + ox, y * cell_size + oy, color)
+    return img
+
+func render_grid() -> void:
+    if grid_size.x <= 0 or grid_size.y <= 0:
+        return
+    var img: Image = build_grid_image()
+    var tex: ImageTexture = ImageTexture.create_from_image(img)
+    grid_view.texture = tex
+
+func export_grid_image() -> void:
+    if grid_size.x <= 0 or grid_size.y <= 0:
+        return
+    var img: Image = build_grid_image()
+    var path: String = resolve_export_path()
+    var err: int = img.save_png(path)
+    if err == OK:
+        export_counter += 1
+        info_label.text = "Exported: %s" % path
+    else:
+        info_label.text = "Export failed (%d)" % err
+
+func resolve_export_path() -> String:
+    var pattern: String = export_pattern
+    var pad_start: int = -1
+    var pad_len: int = 0
+    for i in pattern.length():
+        if pattern[i] == '#':
+            if pad_start == -1:
+                pad_start = i
+            pad_len += 1
+        elif pad_start != -1:
+            break
+    if pad_len > 0:
+        var number_str: String = str(export_counter).pad_zeros(pad_len)
+        pattern = pattern.substr(0, pad_start) + number_str + pattern.substr(pad_start + pad_len)
+    var path: String = pattern
+    if not path.begins_with("user://") and not path.begins_with("res://") and not path.begins_with("/"):
+        path = "user://" + path
+    return path
 
 func _process(delta: float) -> void:
-    production_accumulator += delta * float(autoclippers) * AUTOCLIPPER_RATE * (1.0 + clipper_rate_bonus)
-    while production_accumulator >= 1.0:
-        if not make_clip():
-            production_accumulator = 0.0
-            break
-        production_accumulator -= 1.0
-
-    update_demand(delta)
-    sales_accumulator += delta
-    if sales_accumulator >= 0.5:
-        process_sales(sales_accumulator)
-        sales_accumulator = 0.0
-
-    accumulate_operations(delta)
-
-    refresh_ui()
-
-func make_clip() -> bool:
-    if wire <= 0:
-        return false
-    wire -= 1
-    total_paperclips += 1
-    unsold_inventory += 1
-    return true
-
-func process_sales(elapsed: float) -> void:
-    if unsold_inventory <= 0:
+    if not ui_ready:
         return
-    demand_buffer += smoothed_demand * elapsed
-    var potential_sales: int = int(floor(demand_buffer))
-    demand_buffer -= float(potential_sales)
-    var actual_sales: int = min(unsold_inventory, potential_sales)
-    if actual_sales <= 0:
+    if is_paused and not step_requested:
         return
-    unsold_inventory -= actual_sales
-    total_sold += actual_sales
-    funds += float(actual_sales) * price
 
-func calculate_target_demand() -> float:
-    var base_demand: float = 0.8 + float(marketing_level) * 0.3 + demand_bonus
-    var price_factor: float = clamp(1.5 - price * 0.45 * price_sensitivity, 0.65, 1.9)
-    var safe_inventory: float = max(float(unsold_inventory) - 500.0, 0.0)
-    var inventory_pressure: float = clamp(1.0 - safe_inventory / 80000.0, 0.97, 1.0)
-    var sold_after_threshold: float = max(float(total_sold) - 1500000.0, 0.0)
-    var saturation_pressure: float = 1.0 - min(sold_after_threshold / 175000000.0, 0.25)
-    return max(0.15, base_demand * price_factor * inventory_pressure * saturation_pressure)
+    var updated: bool = false
 
-func update_demand(delta: float) -> void:
-    var target: float = calculate_target_demand()
-    var smoothing_factor: float = clamp(delta * 0.12, 0.0, 0.35)
-    smoothed_demand = lerpf(smoothed_demand, target, smoothing_factor)
+    if step_requested:
+        if wolfram_enabled:
+            step_wolfram()
+            updated = true
+        if ants_enabled:
+            step_ants()
+            updated = true
+        if gol_enabled:
+            step_game_of_life()
+            updated = true
+        if day_night_enabled:
+            step_day_night()
+            updated = true
+        if seeds_enabled:
+            step_seeds()
+            updated = true
+        if turmite_enabled:
+            step_turmites()
+            updated = true
+        step_requested = false
+    else:
+        var scaled_delta: float = delta * max(global_rate, 0.0)
+        updated = process_wolfram(scaled_delta) or updated
+        updated = process_ants(scaled_delta) or updated
+        updated = process_game_of_life(scaled_delta) or updated
+        updated = process_day_night(scaled_delta) or updated
+        updated = process_seeds(scaled_delta) or updated
+        updated = process_turmites(scaled_delta) or updated
 
-func adjust_price(amount: float) -> void:
-    price = clamp(price + amount, MIN_PRICE, MAX_PRICE)
-    price = snapped(price, 0.01)
+    if updated:
+        render_grid()
 
-func _on_make_clip_pressed() -> void:
-    make_clip()
-
-func _on_buy_wire_pressed() -> void:
-    if funds < WIRE_BASE_COST:
-        return
-    funds -= WIRE_BASE_COST
-    wire += wire_per_purchase
-
-func _on_buy_marketing_pressed() -> void:
-    var cost: float = get_effective_marketing_cost()
-    if funds < cost:
-        return
-    funds -= cost
-    marketing_level += 1
-    marketing_cost = round(marketing_cost * 1.2 * 100.0) / 100.0
-
-func _on_buy_autoclipper_pressed() -> void:
-    if funds < autoclipper_cost:
-        return
-    funds -= autoclipper_cost
-    autoclippers += 1
-    autoclipper_cost = round(autoclipper_cost * 1.15 * 100.0) / 100.0
-
-func _on_buy_processor_pressed() -> void:
-    if funds < processor_cost:
-        return
-    funds -= processor_cost
-    processors += 1
-    processor_cost = round(processor_cost * 1.15 * 100.0) / 100.0
-
-func _on_buy_memory_pressed() -> void:
-    if funds < memory_cost:
-        return
-    funds -= memory_cost
-    memory_banks += 1
-    update_ops_capacity()
-    memory_cost = round(memory_cost * 1.18 * 100.0) / 100.0
-
-func format_currency(value: float) -> String:
-    return "$%.2f" % value
-
-func get_effective_marketing_cost() -> float:
-    return round(marketing_cost * (1.0 - marketing_discount) * 100.0) / 100.0
-
-func accumulate_operations(delta: float) -> void:
-    var ops_rate: float = float(processors) * (OPS_PER_PROCESSOR + float(memory_banks) * OPS_MEMORY_FACTOR)
-    ops_rate *= 1.0 + ops_rate_bonus
-    operations = min(operations + ops_rate * delta, float(ops_capacity))
-
-func update_ops_capacity() -> void:
-    ops_capacity = BASE_OPS_CAPACITY + ops_capacity_bonus + memory_banks * 150
-    operations = min(operations, float(ops_capacity))
-
-func _on_upgrade_pressed(key: String) -> void:
-    var upgrade: Upgrade = get_upgrade(key)
-    if upgrade.applied:
-        return
-    if operations < float(upgrade.ops_cost):
-        return
-    operations -= float(upgrade.ops_cost)
-    upgrade.applied = true
-    upgrade.effect.call()
-
-func get_upgrade(key: String) -> Upgrade:
-    for upgrade: Upgrade in upgrades:
-        if upgrade.key == key:
-            return upgrade
-    push_error("Unknown upgrade key: %s" % key)
-    return upgrades[0]
-
-func is_upgrade_unlocked(upgrade: Upgrade) -> bool:
-    if total_paperclips < upgrade.unlock_at_clips:
-        return false
-    if upgrade.prerequisite != "":
-        var prerequisite_upgrade: Upgrade = get_upgrade(upgrade.prerequisite)
-        if not prerequisite_upgrade.applied:
-            return false
-    return true
-
-func refresh_ui() -> void:
-    labels["total"].text = str(total_paperclips)
-    labels["inventory"].text = str(unsold_inventory)
-    labels["price"].text = format_currency(price)
-    labels["funds"].text = format_currency(funds)
-    labels["wire"].text = str(wire) + " m"
-
-    var clip_rate: float = float(autoclippers) * AUTOCLIPPER_RATE * (1.0 + clipper_rate_bonus)
-    if wire <= 0:
-        clip_rate = 0.0
-    labels["production"].text = "%.2f" % clip_rate
-    labels["marketing"].text = str(marketing_level)
-    labels["autoclippers"].text = str(autoclippers)
-
-    labels["demand"].text = "Demand: %.2f clips / sec" % smoothed_demand
-    labels["processors"].text = str(processors)
-    labels["memory"].text = str(memory_banks)
-    labels["ops"].text = "%.0f / %d ops" % [operations, ops_capacity]
-
-    var autoclipper_unlocked: bool = total_paperclips >= AUTOCLIPPER_UNLOCK
-    buttons["autoclipper"].visible = autoclipper_unlocked
-    buttons["make"].disabled = wire <= 0
-    buttons["wire"].text = "Buy wire (+" + str(wire_per_purchase) + "m) (" + format_currency(WIRE_BASE_COST) + ")"
-    buttons["wire"].disabled = funds < WIRE_BASE_COST
-
-    buttons["marketing"].text = "Launch marketing (" + format_currency(get_effective_marketing_cost()) + ")"
-    buttons["marketing"].disabled = funds < get_effective_marketing_cost()
-
-    buttons["autoclipper"].text = "Buy AutoClipper (" + format_currency(autoclipper_cost) + ")"
-    buttons["autoclipper"].disabled = funds < autoclipper_cost or wire <= 0
-
-    var computing_unlocked: bool = total_paperclips >= COMPUTING_UNLOCK
-    computing_panel.visible = computing_unlocked
-    buttons["processor"].visible = computing_unlocked
-    buttons["memory"].visible = computing_unlocked
-
-    buttons["processor"].text = "Buy processor (" + format_currency(processor_cost) + ")"
-    buttons["processor"].disabled = funds < processor_cost
-    buttons["memory"].text = "Buy memory (" + format_currency(memory_cost) + ")"
-    buttons["memory"].disabled = funds < memory_cost
-
-    for upgrade: Upgrade in upgrades:
-        var button: Button = upgrade_buttons[upgrade.key]
-        var unlocked: bool = is_upgrade_unlocked(upgrade)
-        button.visible = unlocked
-        button.disabled = upgrade.applied or (operations < float(upgrade.ops_cost)) or not unlocked
-        var label: String = "%s - %s" % [upgrade.label, upgrade.description]
-        label += " (" + str(upgrade.ops_cost) + " ops)"
-        if upgrade.applied:
-            label += " [purchased]"
-        button.text = label
-
-    buttons["price_down"].disabled = price <= MIN_PRICE
-    buttons["price_up"].disabled = price >= MAX_PRICE
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_RESIZED:
+        update_grid_size()
+        render_grid()
