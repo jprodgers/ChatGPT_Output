@@ -38,6 +38,22 @@ var seeds_rate: float = 1.0
 var seeds_accumulator: float = 0.0
 var seeds_enabled: bool = false
 
+var sand_rate: float = 30.0
+var sand_accumulator: float = 0.0
+var sand_enabled: bool = false
+var sand_grid: PackedInt32Array = PackedInt32Array()
+var sand_drop_amount: int = 1000
+
+const SAND_PALETTE_PRESETS: Dictionary = {
+    "Desert": [Color(0.93, 0.82, 0.57), Color(0.86, 0.67, 0.45), Color(0.71, 0.52, 0.33), Color(0.49, 0.36, 0.25)],
+    "Pastel": [Color(0.91, 0.91, 0.98), Color(0.74, 0.86, 0.96), Color(0.56, 0.77, 0.93), Color(0.38, 0.69, 0.89)],
+    "Neon": [Color(0.0, 1.0, 0.59), Color(0.39, 0.96, 0.99), Color(0.93, 0.2, 0.93), Color(1.0, 0.53, 0.0)],
+    "Grayscale": [Color(0.2, 0.2, 0.2), Color(0.4, 0.4, 0.4), Color(0.6, 0.6, 0.6), Color(0.85, 0.85, 0.85)]
+}
+const SAND_PALETTE_ORDER: Array[String] = ["Desert", "Pastel", "Neon", "Grayscale", "Custom"]
+var sand_palette_name: String = "Desert"
+var sand_colors: Array[Color] = []
+
 const TURMITE_RULE_PRESETS: Array[String] = [
     "RL", # Classic Langton ant
     "RLR", # Simple oscillations
@@ -95,9 +111,14 @@ var export_counter: int = 0
 @onready var turmite_rule_option: OptionButton = OptionButton.new()
 @onready var turmite_count_spin: SpinBox = SpinBox.new()
 @onready var turmite_color_picker: ColorPickerButton = ColorPickerButton.new()
+@onready var sand_rate_spin: SpinBox = SpinBox.new()
+@onready var sand_amount_spin: SpinBox = SpinBox.new()
+@onready var sand_palette_option: OptionButton = OptionButton.new()
+var sand_color_pickers: Array[ColorPickerButton] = []
 
 func _ready() -> void:
     set_process(true)
+    sand_colors = SAND_PALETTE_PRESETS[sand_palette_name].duplicate()
     build_ui()
     call_deferred("initialize_grid")
 
@@ -163,6 +184,7 @@ func build_ui() -> void:
     controls_column.add_child(build_collapsible_section("Game of Life", build_gol_controls()))
     controls_column.add_child(build_collapsible_section("Day & Night", build_day_night_controls()))
     controls_column.add_child(build_collapsible_section("Seeds", build_seeds_controls()))
+    controls_column.add_child(build_collapsible_section("Falling Sand", build_sand_controls()))
 
     view_container = Panel.new()
     view_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -292,6 +314,7 @@ func build_grid_controls() -> VBoxContainer:
         grid.fill(0)
         clear_ants()
         clear_turmites()
+        clear_sand()
         render_grid()
     )
     box.add_child(clear_button)
@@ -537,6 +560,108 @@ func build_seeds_controls() -> VBoxContainer:
 
     return box
 
+func build_sand_controls() -> VBoxContainer:
+    var box: VBoxContainer = VBoxContainer.new()
+    box.add_theme_constant_override("separation", 6)
+
+    var palette_row: HBoxContainer = HBoxContainer.new()
+    var palette_label: Label = Label.new()
+    palette_label.text = "Palette"
+    palette_row.add_child(palette_label)
+    sand_palette_option.clear()
+    for name in SAND_PALETTE_ORDER:
+        sand_palette_option.add_item(str(name))
+    sand_palette_option.select(max(0, SAND_PALETTE_ORDER.find(sand_palette_name)))
+    sand_palette_option.item_selected.connect(func(index: int) -> void:
+        var name: String = sand_palette_option.get_item_text(index)
+        sand_palette_name = name
+        var preset: Array = SAND_PALETTE_PRESETS.get(name, [])
+        if preset.size() == 4:
+            sand_colors = preset.duplicate()
+            for i in range(4):
+                if i < sand_color_pickers.size():
+                    sand_color_pickers[i].color = sand_colors[i]
+        render_grid()
+    )
+    palette_row.add_child(sand_palette_option)
+    box.add_child(palette_row)
+
+    sand_color_pickers.clear()
+    for i in range(4):
+        var color_row: HBoxContainer = HBoxContainer.new()
+        var color_label: Label = Label.new()
+        color_label.text = "Level %d" % i
+        color_row.add_child(color_label)
+        var picker: ColorPickerButton = ColorPickerButton.new()
+        picker.color = sand_colors[i] if sand_colors.size() > i else Color.WHITE
+        picker.color_changed.connect(func(c: Color) -> void:
+            if sand_colors.size() <= i:
+                sand_colors.resize(i + 1)
+            sand_colors[i] = c
+            sand_palette_name = "Custom"
+            sand_palette_option.select(max(0, SAND_PALETTE_ORDER.find("Custom")))
+            render_grid()
+        )
+        sand_color_pickers.append(picker)
+        color_row.add_child(picker)
+        box.add_child(color_row)
+
+    var amount_row: HBoxContainer = HBoxContainer.new()
+    var amount_label: Label = Label.new()
+    amount_label.text = "Center sand"
+    amount_row.add_child(amount_label)
+    sand_amount_spin.min_value = 1
+    sand_amount_spin.max_value = 1000000
+    sand_amount_spin.step = 1
+    sand_amount_spin.value = sand_drop_amount
+    sand_amount_spin.value_changed.connect(func(v: float) -> void: sand_drop_amount = int(v))
+    amount_row.add_child(sand_amount_spin)
+    var drop_button: Button = Button.new()
+    drop_button.text = "Drop"
+    drop_button.pressed.connect(func() -> void:
+        add_sand_to_center(sand_drop_amount)
+        render_grid()
+    )
+    amount_row.add_child(drop_button)
+    box.add_child(amount_row)
+
+    var rate_row: HBoxContainer = HBoxContainer.new()
+    var rate_label: Label = Label.new()
+    rate_label.text = "Steps/sec"
+    rate_row.add_child(rate_label)
+    sand_rate_spin.min_value = 0.0
+    sand_rate_spin.max_value = 240.0
+    sand_rate_spin.step = 0.01
+    sand_rate_spin.allow_greater = true
+    sand_rate_spin.value = sand_rate
+    sand_rate_spin.value_changed.connect(func(v: float) -> void: sand_rate = max(0.0, v))
+    rate_row.add_child(sand_rate_spin)
+    box.add_child(rate_row)
+
+    var buttons: HBoxContainer = HBoxContainer.new()
+    var toggle: CheckBox = CheckBox.new()
+    toggle.text = "Auto"
+    toggle.button_pressed = sand_enabled
+    toggle.toggled.connect(func(v: bool) -> void: sand_enabled = v)
+    buttons.add_child(toggle)
+    var step: Button = Button.new()
+    step.text = "Step"
+    step.pressed.connect(func() -> void:
+        step_sand()
+        render_grid()
+    )
+    buttons.add_child(step)
+    var clear_button: Button = Button.new()
+    clear_button.text = "Clear sand"
+    clear_button.pressed.connect(func() -> void:
+        clear_sand()
+        render_grid()
+    )
+    buttons.add_child(clear_button)
+    box.add_child(buttons)
+
+    return box
+
 func build_turmite_controls() -> VBoxContainer:
     var box: VBoxContainer = VBoxContainer.new()
     box.add_theme_constant_override("separation", 6)
@@ -625,6 +750,8 @@ func update_grid_size() -> void:
     if size_changed:
         grid.resize(grid_size.x * grid_size.y)
         grid.fill(0)
+        sand_grid.resize(grid_size.x * grid_size.y)
+        sand_grid.fill(0)
         wolfram_row = 0
         clear_ants()
         clear_turmites()
@@ -769,6 +896,18 @@ func process_turmites(delta: float) -> bool:
     while turmite_accumulator >= interval:
         step_turmites()
         turmite_accumulator -= interval
+        stepped = true
+    return stepped
+
+func process_sand(delta: float) -> bool:
+    if not sand_enabled or sand_rate <= 0.0:
+        return false
+    sand_accumulator += delta
+    var interval: float = 1.0 / sand_rate
+    var stepped: bool = false
+    while sand_accumulator >= interval:
+        step_sand()
+        sand_accumulator -= interval
         stepped = true
     return stepped
 
@@ -934,6 +1073,51 @@ func step_turmites() -> void:
         turmite_directions.remove_at(remove_idx)
         turmite_colors.remove_at(remove_idx)
 
+func add_sand_to_center(amount: int) -> void:
+    if grid_size.x <= 0 or grid_size.y <= 0:
+        return
+    if sand_grid.size() != grid_size.x * grid_size.y:
+        sand_grid.resize(grid_size.x * grid_size.y)
+        sand_grid.fill(0)
+    var center: Vector2i = Vector2i(grid_size.x / 2, grid_size.y / 2)
+    var idx: int = center.y * grid_size.x + center.x
+    if idx >= 0 and idx < sand_grid.size():
+        sand_grid[idx] += max(0, amount)
+
+func clear_sand() -> void:
+    sand_grid.fill(0)
+    sand_accumulator = 0.0
+
+func step_sand() -> void:
+    if sand_grid.size() != grid_size.x * grid_size.y:
+        sand_grid.resize(grid_size.x * grid_size.y)
+        sand_grid.fill(0)
+    var updates: Array[Vector2i] = []
+    for y in range(grid_size.y):
+        for x in range(grid_size.x):
+            var idx: int = y * grid_size.x + x
+            if sand_grid[idx] >= 4:
+                updates.append(Vector2i(x, y))
+    if updates.is_empty():
+        return
+
+    for pos in updates:
+        var idx: int = pos.y * grid_size.x + pos.x
+        sand_grid[idx] -= 4
+        for dir in DIRS:
+            var next: Vector2i = pos + dir
+            match edge_mode:
+                EDGE_WRAP:
+                    next = wrap_position(next)
+                EDGE_BOUNCE:
+                    next.x = clamp(next.x, 0, grid_size.x - 1)
+                    next.y = clamp(next.y, 0, grid_size.y - 1)
+                EDGE_FALLOFF:
+                    if next.x < 0 or next.x >= grid_size.x or next.y < 0 or next.y >= grid_size.y:
+                        continue
+            var nidx: int = next.y * grid_size.x + next.x
+            sand_grid[nidx] += 1
+
 func build_grid_image() -> Image:
     var img: Image = Image.create(grid_size.x * cell_size, grid_size.y * cell_size, false, Image.FORMAT_RGBA8)
     var marker_map: Dictionary = {}
@@ -943,7 +1127,13 @@ func build_grid_image() -> Image:
         marker_map[turmites[i]] = turmite_colors[i]
     for y in range(grid_size.y):
         for x in range(grid_size.x):
+            var sand_idx: int = y * grid_size.x + x
+            var has_sand: bool = sand_idx < sand_grid.size() and sand_grid[sand_idx] > 0
             var color: Color = dead_color if grid[y * grid_size.x + x] == 0 else alive_color
+            if has_sand:
+                var palette_size: int = sand_colors.size()
+                if palette_size > 0:
+                    color = sand_colors[(sand_grid[sand_idx] % palette_size + palette_size) % palette_size]
             if marker_map.has(Vector2i(x, y)):
                 color = marker_map[Vector2i(x, y)]
             for oy in range(cell_size):
@@ -1016,6 +1206,9 @@ func _process(delta: float) -> void:
         if turmite_enabled:
             step_turmites()
             updated = true
+        if sand_enabled:
+            step_sand()
+            updated = true
         step_requested = false
     else:
         var scaled_delta: float = delta * max(global_rate, 0.0)
@@ -1025,6 +1218,7 @@ func _process(delta: float) -> void:
         updated = process_day_night(scaled_delta) or updated
         updated = process_seeds(scaled_delta) or updated
         updated = process_turmites(scaled_delta) or updated
+        updated = process_sand(scaled_delta) or updated
 
     if updated:
         render_grid()

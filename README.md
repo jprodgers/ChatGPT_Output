@@ -1,6 +1,6 @@
 # Cellular Automata Sandbox (Godot 4.5.1)
 
-This project builds a fullscreen-friendly cellular automata playground designed for shader experimentation. The grid is binary, supports selectable colors, and exposes stackable automata: Wolfram 1D rules sweeping down the screen, Langton's ants, a customizable Turmite, Conway's Game of Life (GoL), Day & Night, and Seeds.
+This project builds a fullscreen-friendly cellular automata playground designed for shader experimentation. The grid is binary, supports selectable colors, and exposes stackable automata: Wolfram 1D rules sweeping down the screen, Langton's ants, a customizable Turmite, Conway's Game of Life (GoL), Day & Night, Seeds, and a falling-sand pile.
 
 ## Running
 Open the project in Godot 4.5.1 and play the **Main** scene. The UI is created at runtime, so no additional setup is required.
@@ -12,7 +12,7 @@ The control panel lives on the left to maximize horizontal space for the grid, s
   - Global updates-per-second gate (default 10.0) scales automata speed up or down; raise it to drive faster-than-real-time updates.
   - Edge behavior: Wrap (default), Bounce, or Fall off.
   - Alive/dead color pickers (default white/black).
-  - Random seeding with adjustable coverage percentage (default 20%) and a clear button that also clears ants/turmites (automata start disabled, unseeded, paused, and all menus collapsed by default).
+  - Random seeding with adjustable coverage percentage (default 20%) and a clear button that also clears ants/turmites/sand (automata start disabled, unseeded, paused, and all menus collapsed by default).
 - **Playback**
   - Global Play/Pause toggle plus a single-step button to advance every enabled automaton once while paused.
 - **Export**
@@ -36,6 +36,10 @@ The control panel lives on the left to maximize horizontal space for the grid, s
   - Per-second rate control, auto toggle (off by default), and manual step for the B3678/S34678 rule.
 - **Seeds**
   - Per-second rate control, auto toggle (off by default), and manual step for the B2/S0 rule.
+- **Falling Sand**
+  - Palette dropdown (Desert/Pastel/Neon/Grayscale/Custom) plus four per-level color pickers to tune sand heights.
+  - Center-drop amount field and **Drop** button to pour `N` grains into the grid center; **Clear sand** resets the pile.
+  - Per-second rate, auto toggle (off by default), and manual step; each step topples any cell with 4+ grains into its 4 neighbors respecting the edge behavior.
 
 ## Suggested Workflow
 1. Set a Wolfram rule and speed to seed the grid from the top.
