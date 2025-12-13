@@ -22,7 +22,7 @@ var wolfram_rate: float = 1.0
 var wolfram_accumulator: float = 0.0
 var wolfram_enabled: bool = false
 
-var ant_rate: float = 10.0
+var ant_rate: float = 1.0
 var ant_accumulator: float = 0.0
 var ants_enabled: bool = false
 
@@ -751,16 +751,39 @@ func update_grid_size() -> void:
         return
     var new_size: Vector2i = Vector2i(max(1, viewport_size.x / cell_size), max(1, viewport_size.y / cell_size))
     var size_changed: bool = new_size != grid_size or grid.size() != new_size.x * new_size.y
-    grid_size = new_size
-
     if size_changed:
-        grid.resize(grid_size.x * grid_size.y)
-        grid.fill(0)
-        sand_grid.resize(grid_size.x * grid_size.y)
-        sand_grid.fill(0)
-        wolfram_row = 0
-        clear_ants()
-        clear_turmites()
+        var old_size: Vector2i = grid_size
+        var old_grid: PackedByteArray = grid.duplicate()
+        var old_sand: PackedInt32Array = sand_grid.duplicate()
+        grid_size = new_size
+
+        var new_grid: PackedByteArray = PackedByteArray()
+        new_grid.resize(grid_size.x * grid_size.y)
+        new_grid.fill(0)
+        var new_sand: PackedInt32Array = PackedInt32Array()
+        new_sand.resize(grid_size.x * grid_size.y)
+        new_sand.fill(0)
+
+        var copy_w: int = min(old_size.x, grid_size.x)
+        var copy_h: int = min(old_size.y, grid_size.y)
+        if copy_w > 0 and copy_h > 0:
+            for y in range(copy_h):
+                for x in range(copy_w):
+                    var old_idx: int = y * old_size.x + x
+                    var new_idx: int = y * grid_size.x + x
+                    new_grid[new_idx] = old_grid[old_idx]
+                    new_sand[new_idx] = old_sand[old_idx]
+
+        grid = new_grid
+        sand_grid = new_sand
+
+        wolfram_row = min(wolfram_row, grid_size.y)
+        for i in range(ants.size()):
+            ants[i] = wrap_position(ants[i])
+        for i in range(turmites.size()):
+            turmites[i] = wrap_position(turmites[i])
+    else:
+        grid_size = new_size
     info_label.text = "Grid: %dx%d cells @ %d px" % [grid_size.x, grid_size.y, cell_size]
 
 func random_fill_grid() -> void:

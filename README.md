@@ -25,7 +25,7 @@ The control panel lives on the left to maximize horizontal space for the grid, s
 - **Langton's Ant**
   - Spawn any number of ants with a chosen color; supports edge behaviors above.
   - Dedicated “Clear ants” action to remove all walkers when needed and the global “Clear” grid button also removes ants.
-  - Per-second rate (default 10.0), auto toggle (off by default), and manual step (spawns default to a single ant).
+  - Per-second rate (default 1.0), auto toggle (off by default), and manual step (spawns default to a single ant).
 - **Turmite**
   - Preset rule dropdown (default `RL`) with common turn strings, plus spawn count and color picker for the walker(s); supports edge behaviors above.
   - Per-second rate control, auto toggle (off by default), manual step, and clear action.
