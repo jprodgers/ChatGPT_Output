@@ -1,7 +1,7 @@
 // Sandpile cellular automaton with configurable resolution, palette, and exporting
 // Single-file Processing sketch
 
-int controlWidth = 220;         // Left panel width
+int controlWidth = 260;         // Left panel width
 int sandAreaSize;               // Square drawing area size
 int cellSize = 4;               // Pixel size per sand cell
 int cols, rows;                 // Grid dimensions
@@ -20,6 +20,13 @@ int exportCounter = 0;          // Index for saved frames
 String exportBase = "export/frame";
 
 color[] palette;
+int selectedLevel = 0;          // Palette index being edited
+float pickerHue = 0;            // HSB color picker values
+float pickerSat = 200;
+float pickerBri = 255;
+int paletteSwatchY = 0;         // Layout bookkeeping for clicks
+int paletteTopY = 0;
+int sliderStartY = 0;
 
 void settings() {
   size(1200, 800); // Default size; can be changed at runtime
@@ -31,6 +38,7 @@ void setup() {
   computeLayout();
   initializeGrid();
   palette = buildPalette(levels);
+  syncPickerWithColor(palette[selectedLevel]);
   frameRate(targetFPS);
 }
 
@@ -52,7 +60,7 @@ void draw() {
     initializeGrid();
   }
 
-  background(20);
+  background(0);
   drawControls();
 
   if (!pauseUpdates) {
@@ -115,7 +123,7 @@ void drawSand() {
 }
 
 void drawControls() {
-  fill(40);
+  fill(30);
   noStroke();
   rect(0, 0, controlWidth, height);
 
@@ -137,10 +145,99 @@ void drawControls() {
   text("Click: add sand", 10, y); y += lineHeight;
   text("E: export frame", 10, y); y += lineHeight;
   text("R: reset grid", 10, y); y += lineHeight;
-  text("Add 1000 grains (G)", 10, y); y += lineHeight;
+  text("Add 1000 grains (G)", 10, y); y += lineHeight * 2;
+
+  paletteSwatchY = y;
+  drawPaletteSwatches(10, y);
+  y = paletteSwatchY;
+
+  sliderStartY = y + lineHeight;
+  drawColorPicker(10, sliderStartY);
+}
+
+void drawPaletteSwatches(int startX, int startY) {
+  int swatchSize = 20;
+  int gap = 6;
+  int perRow = max(1, (controlWidth - startX * 2) / (swatchSize + gap));
+  int x = startX;
+  int y = startY;
+
+  text("Palette (click to edit):", startX, y);
+  y += 22;
+  paletteTopY = y;
+
+  for (int i = 0; i < levels; i++) {
+    if ((i % perRow == 0) && i != 0) {
+      x = startX;
+      y += swatchSize + gap;
+    }
+
+    fill(palette[i]);
+    stroke(255);
+    rect(x, y, swatchSize, swatchSize);
+
+    if (i == selectedLevel) {
+      noFill();
+      stroke(255, 220, 0);
+      strokeWeight(2);
+      rect(x - 2, y - 2, swatchSize + 4, swatchSize + 4);
+      strokeWeight(1);
+    }
+
+    x += swatchSize + gap;
+  }
+
+  paletteSwatchY = y + swatchSize;
+}
+
+void drawColorPicker(int startX, int startY) {
+  int sliderWidth = controlWidth - startX * 2;
+  int sliderGap = 30;
+
+  fill(255);
+  text("Color picker (HSB)", startX, startY);
+  startY += 16;
+
+  pickerHue = drawSlider("Hue", startX, startY, sliderWidth, pickerHue, 255, color(180, 255, 255));
+  startY += sliderGap;
+  pickerSat = drawSlider("Sat", startX, startY, sliderWidth, pickerSat, 255, color(120, 255, 255));
+  startY += sliderGap;
+  pickerBri = drawSlider("Bri", startX, startY, sliderWidth, pickerBri, 255, color(60, 255, 255));
+
+  palette[selectedLevel] = colorFromHSB(pickerHue, pickerSat, pickerBri);
+}
+
+float drawSlider(String label, int x, int y, int w, float value, float maxVal, color accent) {
+  int barHeight = 12;
+  fill(200);
+  text(label + ": " + nf(value, 0, 0), x, y - 2);
+
+  int barY = y + 6;
+  fill(60);
+  noStroke();
+  rect(x, barY, w, barHeight, 4);
+
+  float handleX = constrain(map(value, 0, maxVal, 0, w), 0, w);
+  fill(accent);
+  rect(x, barY, handleX, barHeight, 4);
+
+  stroke(255);
+  line(x + handleX, barY - 3, x + handleX, barY + barHeight + 3);
+
+  if (mousePressed && mouseX >= x && mouseX <= x + w && mouseY >= barY && mouseY <= barY + barHeight) {
+    value = map(mouseX, x, x + w, 0, maxVal);
+  }
+
+  return constrain(value, 0, maxVal);
 }
 
 void mousePressed() {
+  if (mouseX < controlWidth) {
+    if (handleControlClick(mouseX, mouseY)) {
+      return;
+    }
+  }
+
   if (mouseX >= controlWidth && mouseX < controlWidth + sandAreaSize) {
     int x = (mouseX - controlWidth) / cellSize;
     int yOffset = (height - sandAreaSize) / 2;
@@ -181,9 +278,13 @@ void keyPressed() {
   } else if (key == 'L') {
     levels = min(64, levels + 1);
     palette = buildPalette(levels);
+    selectedLevel = min(selectedLevel, levels - 1);
+    syncPickerWithColor(palette[selectedLevel]);
   } else if (key == 'l') {
     levels = max(2, levels - 1);
     palette = buildPalette(levels);
+    selectedLevel = min(selectedLevel, levels - 1);
+    syncPickerWithColor(palette[selectedLevel]);
   }
 }
 
@@ -211,4 +312,45 @@ color rainbowColor(float t) {
   color c = color(hue, 200, 255);
   colorMode(RGB, 255);
   return c;
+}
+
+color colorFromHSB(float h, float s, float b) {
+  colorMode(HSB, 255);
+  color c = color(h, s, b);
+  colorMode(RGB, 255);
+  return c;
+}
+
+void syncPickerWithColor(color c) {
+  colorMode(HSB, 255);
+  pickerHue = hue(c);
+  pickerSat = saturation(c);
+  pickerBri = brightness(c);
+  colorMode(RGB, 255);
+}
+
+boolean handleControlClick(int mx, int my) {
+  int swatchSize = 20;
+  int gap = 6;
+  int startX = 10;
+  int perRow = max(1, (controlWidth - startX * 2) / (swatchSize + gap));
+
+  int x = startX;
+  int y = paletteTopY;
+
+  for (int i = 0; i < levels; i++) {
+    if (mx >= x && mx <= x + swatchSize && my >= y && my <= y + swatchSize) {
+      selectedLevel = i;
+      syncPickerWithColor(palette[selectedLevel]);
+      return true;
+    }
+
+    x += swatchSize + gap;
+    if ((i + 1) % perRow == 0) {
+      x = startX;
+      y += swatchSize + gap;
+    }
+  }
+
+  return false;
 }
