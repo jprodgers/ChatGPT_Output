@@ -7,6 +7,8 @@ int cellSize = 4;               // Pixel size per sand cell
 int cols, rows;                 // Grid dimensions
 int threshold = 4;              // Topple threshold
 int levels = 6;                 // Number of visualization levels
+int clickDeposit = 1000;        // Grains added per mouse click
+int keyDeposit = 1000;          // Grains added when pressing G
 
 int[][] grid;
 int[][] bufferGrid;
@@ -145,18 +147,30 @@ void drawControls() {
   text("Steps/frame (</>): " + updatesPerDraw, 10, y); y += lineHeight;
   text("Cell size ([/]): " + cellSize + " px", 10, y); y += lineHeight;
   text("Levels (L/l): " + levels, 10, y); y += lineHeight;
+  text("Threshold: " + threshold, 10, y); y += lineHeight;
   text("Auto export (A): " + (autoExport ? "on" : "off"), 10, y); y += lineHeight;
   text("Pause (Space): " + (pauseUpdates ? "yes" : "no"), 10, y); y += lineHeight;
-  text("Click: add sand", 10, y); y += lineHeight;
+  text("Click: add " + clickDeposit + " grains", 10, y); y += lineHeight;
+  text("G: drop " + keyDeposit + " grains", 10, y); y += lineHeight;
   text("E: export frame", 10, y); y += lineHeight;
   text("R: reset grid", 10, y); y += lineHeight;
-  text("Add 1000 grains (G)", 10, y); y += lineHeight * 2;
+  y += lineHeight;
 
   paletteSwatchY = y;
   drawPaletteSwatches(10, y);
   y = paletteSwatchY;
 
   sliderStartY = y + lineHeight;
+
+  int sliderWidth = controlWidth - 20;
+  int sliderGap = 30;
+  threshold = max(1, round(drawSlider("Topple threshold", 10, sliderStartY, sliderWidth, threshold, max(4, levels * 4), color(200, 120, 255))));
+  sliderStartY += sliderGap;
+  clickDeposit = max(1, round(drawSlider("Click deposit", 10, sliderStartY, sliderWidth, clickDeposit, 100000, color(255, 120, 80))));
+  sliderStartY += sliderGap;
+  keyDeposit = max(1, round(drawSlider("G drop amount", 10, sliderStartY, sliderWidth, keyDeposit, 100000, color(120, 200, 255))));
+  sliderStartY += sliderGap;
+
   drawColorPicker(10, sliderStartY);
 }
 
@@ -248,7 +262,7 @@ void mousePressed() {
     int yOffset = (height - sandAreaSize) / 2;
     int y = (mouseY - yOffset) / cellSize;
     if (x >= 0 && x < cols && y >= 0 && y < rows) {
-      grid[x][y] += 1000;
+      grid[x][y] += clickDeposit;
     }
   }
 }
@@ -279,7 +293,7 @@ void keyPressed() {
   } else if (key == 'A' || key == 'a') {
     autoExport = !autoExport;
   } else if (key == 'G' || key == 'g') {
-    dropCenter(1000);
+    dropCenter(keyDeposit);
   } else if (key == 'L') {
     levels = min(64, levels + 1);
     palette = buildPalette(levels);
@@ -290,6 +304,10 @@ void keyPressed() {
     palette = buildPalette(levels);
     selectedLevel = min(selectedLevel, levels - 1);
     syncPickerWithColor(palette[selectedLevel]);
+  } else if (key == 'T') {
+    threshold = min(128, threshold + 1);
+  } else if (key == 't') {
+    threshold = max(1, threshold - 1);
   }
 }
 
