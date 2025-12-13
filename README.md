@@ -25,13 +25,13 @@ The control panel lives on the left to maximize horizontal space for the grid, s
 - **Langton's Ant**
   - Spawn any number of ants with a chosen color; supports edge behaviors above.
   - Dedicated “Clear ants” action to remove all walkers when needed and the global “Clear” grid button also removes ants.
-  - Per-second rate (default 10.0), auto toggle (off by default), and manual step.
+  - Per-second rate (default 10.0), auto toggle (off by default), and manual step (spawns default to a single ant).
 - **Turmite**
   - Preset rule dropdown (default `RL`) with common turn strings, plus spawn count and color picker for the walker(s); supports edge behaviors above.
   - Per-second rate control, auto toggle (off by default), manual step, and clear action.
 - **Game of Life**
   - Per-second rate (float, default 1.0), auto toggle (off by default), and manual step.
-  - Optional ant chaining: check the box next to “Every N ant steps” to fire a GoL sweep after that many ant updates (e.g., 100); uncheck to run GoL independently (default unchecked).
+  - Runs independently from ant activity.
 - **Day & Night**
   - Per-second rate control, auto toggle (off by default), and manual step for the B3678/S34678 rule.
 - **Seeds**
@@ -40,6 +40,6 @@ The control panel lives on the left to maximize horizontal space for the grid, s
 ## Suggested Workflow
 1. Set a Wolfram rule and speed to seed the grid from the top.
 2. Spawn dozens of ants (default red) and let them roam/modify the pattern.
-3. Configure GoL to trigger automatically every N ant steps while also running on its own cadence if desired.
+3. Turn on Game of Life whenever you want an independent sweep across the grid.
 
 You can experiment with extreme update rates (e.g., 0.001 or 100.0 steps/sec) to mix slow sweeps with rapid updates.
