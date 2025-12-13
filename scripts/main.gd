@@ -116,6 +116,10 @@ var export_counter: int = 0
 @onready var sand_palette_option: OptionButton = OptionButton.new()
 var sand_color_pickers: Array[ColorPickerButton] = []
 
+func apply_picker_color(picker: ColorPickerButton, color: Color) -> void:
+    picker.color = color
+    picker.modulate = color
+
 func set_sand_palette_by_name(name: String) -> void:
     sand_palette_name = name
     sand_colors.clear()
@@ -126,7 +130,7 @@ func set_sand_palette_by_name(name: String) -> void:
     while sand_colors.size() < 4:
         sand_colors.append(Color.WHITE)
     for i in range(min(sand_color_pickers.size(), sand_colors.size())):
-        sand_color_pickers[i].color = sand_colors[i]
+        apply_picker_color(sand_color_pickers[i], sand_colors[i])
 
 func _ready() -> void:
     set_process(true)
@@ -296,10 +300,18 @@ func build_grid_controls() -> VBoxContainer:
     var color_label: Label = Label.new()
     color_label.text = "Alive / Dead"
     color_row.add_child(color_label)
-    alive_picker.color = alive_color
-    alive_picker.color_changed.connect(func(c: Color) -> void: alive_color = c; render_grid())
-    dead_picker.color = dead_color
-    dead_picker.color_changed.connect(func(c: Color) -> void: dead_color = c; render_grid())
+    apply_picker_color(alive_picker, alive_color)
+    alive_picker.color_changed.connect(func(c: Color) -> void:
+        alive_color = c
+        apply_picker_color(alive_picker, c)
+        render_grid()
+    )
+    apply_picker_color(dead_picker, dead_color)
+    dead_picker.color_changed.connect(func(c: Color) -> void:
+        dead_color = c
+        apply_picker_color(dead_picker, c)
+        render_grid()
+    )
     color_row.add_child(alive_picker)
     color_row.add_child(dead_picker)
     box.add_child(color_row)
@@ -437,7 +449,10 @@ func build_ant_controls() -> VBoxContainer:
     ant_count_spin.max_value = 200
     ant_count_spin.value = 1
     count_row.add_child(ant_count_spin)
-    ant_color_picker.color = Color(1, 0, 0)
+    apply_picker_color(ant_color_picker, Color(1, 0, 0))
+    ant_color_picker.color_changed.connect(func(c: Color) -> void:
+        apply_picker_color(ant_color_picker, c)
+    )
     count_row.add_child(ant_color_picker)
     var spawn: Button = Button.new()
     spawn.text = "Spawn"
@@ -599,13 +614,15 @@ func build_sand_controls() -> VBoxContainer:
         color_label.text = "Level %d" % i
         color_row.add_child(color_label)
         var picker: ColorPickerButton = ColorPickerButton.new()
-        picker.color = sand_colors[i] if sand_colors.size() > i else Color.WHITE
+        var picker_color: Color = sand_colors[i] if sand_colors.size() > i else Color.WHITE
+        apply_picker_color(picker, picker_color)
         picker.color_changed.connect(func(c: Color) -> void:
             if sand_colors.size() <= i:
                 sand_colors.resize(i + 1)
             sand_colors[i] = c
             sand_palette_name = "Custom"
             sand_palette_option.select(max(0, SAND_PALETTE_ORDER.find("Custom")))
+            apply_picker_color(picker, c)
             render_grid()
         )
         sand_color_pickers.append(picker)
@@ -699,7 +716,10 @@ func build_turmite_controls() -> VBoxContainer:
     turmite_count_spin.step = 1
     turmite_count_spin.value_changed.connect(func(v: float) -> void: turmite_count = int(v))
     spawn_row.add_child(turmite_count_spin)
-    turmite_color_picker.color = Color(0, 0.6, 1)
+    apply_picker_color(turmite_color_picker, Color(0, 0.6, 1))
+    turmite_color_picker.color_changed.connect(func(c: Color) -> void:
+        apply_picker_color(turmite_color_picker, c)
+    )
     spawn_row.add_child(turmite_color_picker)
     var spawn_button: Button = Button.new()
     spawn_button.text = "Spawn"

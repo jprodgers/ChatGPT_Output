@@ -11,7 +11,7 @@ The control panel lives on the left to maximize horizontal space for the grid, s
   - Cell size slider (1–128 px, default 8) keeps the grid aligned to the viewport area beside the sidebar; resizing or changing cell size rebuilds the grid.
   - Global updates-per-second gate (default 10.0) scales automata speed up or down; raise it to drive faster-than-real-time updates.
   - Edge behavior: Wrap (default), Bounce, or Fall off.
-  - Alive/dead color pickers (default white/black).
+  - Alive/dead color pickers (default white/black) tint their buttons with the chosen swatch for quick reference.
   - Random seeding with adjustable coverage percentage (default 20%) and a clear button that also clears ants/turmites/sand (automata start disabled, unseeded, paused, and all menus collapsed by default).
 - **Playback**
   - Global Play/Pause toggle plus a single-step button to advance every enabled automaton once while paused.
