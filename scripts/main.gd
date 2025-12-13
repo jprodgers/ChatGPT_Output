@@ -44,7 +44,7 @@ var sand_enabled: bool = false
 var sand_grid: PackedInt32Array = PackedInt32Array()
 var sand_drop_amount: int = 1000
 
-const SAND_PALETTE_PRESETS: Dictionary = {
+const SAND_PALETTE_PRESETS: Dictionary[String, Array[Color]] = {
     "Desert": [Color(0.93, 0.82, 0.57), Color(0.86, 0.67, 0.45), Color(0.71, 0.52, 0.33), Color(0.49, 0.36, 0.25)],
     "Pastel": [Color(0.91, 0.91, 0.98), Color(0.74, 0.86, 0.96), Color(0.56, 0.77, 0.93), Color(0.38, 0.69, 0.89)],
     "Neon": [Color(0.0, 1.0, 0.59), Color(0.39, 0.96, 0.99), Color(0.93, 0.2, 0.93), Color(1.0, 0.53, 0.0)],
@@ -118,7 +118,7 @@ var sand_color_pickers: Array[ColorPickerButton] = []
 
 func _ready() -> void:
     set_process(true)
-    sand_colors = SAND_PALETTE_PRESETS[sand_palette_name].duplicate()
+    sand_colors = (SAND_PALETTE_PRESETS[sand_palette_name] as Array[Color]).duplicate()
     build_ui()
     call_deferred("initialize_grid")
 
@@ -575,7 +575,7 @@ func build_sand_controls() -> VBoxContainer:
     sand_palette_option.item_selected.connect(func(index: int) -> void:
         var name: String = sand_palette_option.get_item_text(index)
         sand_palette_name = name
-        var preset: Array = SAND_PALETTE_PRESETS.get(name, [])
+        var preset: Array[Color] = SAND_PALETTE_PRESETS.get(name, []) as Array[Color]
         if preset.size() == 4:
             sand_colors = preset.duplicate()
             for i in range(4):
