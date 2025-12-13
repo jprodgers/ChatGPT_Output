@@ -44,7 +44,7 @@ var sand_enabled: bool = false
 var sand_grid: PackedInt32Array = PackedInt32Array()
 var sand_drop_amount: int = 1000
 
-const SAND_PALETTE_PRESETS: Dictionary[String, Array[Color]] = {
+const SAND_PALETTE_PRESETS: Dictionary = {
     "Desert": [Color(0.93, 0.82, 0.57), Color(0.86, 0.67, 0.45), Color(0.71, 0.52, 0.33), Color(0.49, 0.36, 0.25)],
     "Pastel": [Color(0.91, 0.91, 0.98), Color(0.74, 0.86, 0.96), Color(0.56, 0.77, 0.93), Color(0.38, 0.69, 0.89)],
     "Neon": [Color(0.0, 1.0, 0.59), Color(0.39, 0.96, 0.99), Color(0.93, 0.2, 0.93), Color(1.0, 0.53, 0.0)],
