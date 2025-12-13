@@ -86,7 +86,7 @@ var is_paused: bool = true
 
 var step_requested: bool = false
 
-var export_pattern: String = "screenshot####.png"
+var export_pattern: String = "user://screenshot####.png"
 var export_counter: int = 0
 
 @onready var grid_view: TextureRect = TextureRect.new()
@@ -1174,9 +1174,12 @@ func export_grid_image() -> void:
             info_label.text = "Exported: %s" % path
         else:
             info_label.text = "Export failed (%d)" % err
+    render_grid()
 
 func resolve_export_path() -> String:
     var pattern: String = export_pattern
+    if not pattern.contains("://"):
+        pattern = "user://" + pattern
     var pad_start: int = -1
     var pad_len: int = 0
     for i in pattern.length():
