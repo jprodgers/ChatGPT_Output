@@ -120,7 +120,10 @@ func style_picker_button(picker: ColorPickerButton) -> void:
     var base: StyleBoxFlat = StyleBoxFlat.new()
     base.bg_color = Color.WHITE
     base.border_color = Color(0.2, 0.2, 0.2)
-    base.border_width_all = 1
+    base.border_width_left = 1
+    base.border_width_right = 1
+    base.border_width_top = 1
+    base.border_width_bottom = 1
 
     var hover: StyleBoxFlat = base.duplicate() as StyleBoxFlat
     hover.bg_color = Color(1, 1, 1, 0.9)
