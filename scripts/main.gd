@@ -99,8 +99,7 @@ var export_counter: int = 0
 func _ready() -> void:
     set_process(true)
     build_ui()
-    update_grid_size()
-    render_grid()
+    call_deferred("initialize_grid")
 
 func build_ui() -> void:
     var root: HBoxContainer = HBoxContainer.new()
@@ -180,7 +179,16 @@ func build_ui() -> void:
     grid_view.modulate = Color.WHITE
     view_container.add_child(grid_view)
 
+    view_container.resized.connect(func() -> void:
+        update_grid_size()
+        render_grid()
+    )
+
     ui_ready = true
+
+func initialize_grid() -> void:
+    update_grid_size()
+    render_grid()
 
 func build_collapsible_section(title: String, content: Control) -> VBoxContainer:
     var wrapper: VBoxContainer = VBoxContainer.new()
