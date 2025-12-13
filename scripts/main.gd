@@ -117,6 +117,10 @@ var export_counter: int = 0
 var sand_color_pickers: Array[ColorPickerButton] = []
 
 func style_picker_button(picker: ColorPickerButton) -> void:
+    picker.custom_minimum_size = Vector2(32, 32)
+    picker.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+    picker.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+
     var base: StyleBoxFlat = StyleBoxFlat.new()
     base.bg_color = Color.WHITE
     base.border_color = Color(0.2, 0.2, 0.2)
