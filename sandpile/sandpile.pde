@@ -65,15 +65,17 @@ void draw() {
   background(0);
   drawControls();
 
+  boolean steppedThisFrame = false;
   if (!pauseUpdates) {
     for (int i = 0; i < updatesPerDraw; i++) {
       updateSandpile();
     }
+    steppedThisFrame = true;
   }
 
   drawSand();
 
-  if (autoExport) {
+  if (autoExport && steppedThisFrame) {
     saveFrame(exportBase + nf(exportCounter++, 5) + ".png");
   }
 }
