@@ -1,0 +1,7 @@
+63f7b34db8d8cdea90c76aacccf841ec
+::res://::1765586481
+README.md::TextFile::-1::1765586464::0::1::::<><><>0<>0<><>::
+::res://scenes/::1765554059
+Main.tscn::PackedScene::-1::1765554059::0::1::::<><><>0<>0<><>::res://scripts/main.gd
+::res://scripts/::1765586464
+main.gd::GDScript::6794049694642318702::1765586464::0::1::::CellularAutomataHub<>Control<>res://icon.svg<>0<>0<><>::
