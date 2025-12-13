@@ -109,12 +109,17 @@ void drawSand() {
   int xOffset = controlWidth;
   int yOffset = (height - sandAreaSize) / 2;
   noStroke();
+  fill(0);
+  rect(xOffset, yOffset, sandAreaSize, sandAreaSize);
+
   for (int x = 0; x < cols; x++) {
     for (int y = 0; y < rows; y++) {
       int value = grid[x][y];
-      int levelIndex = constrain(value % levels, 0, levels - 1);
-      fill(palette[levelIndex]);
-      rect(xOffset + x * cellSize, yOffset + y * cellSize, cellSize, cellSize);
+      if (value > 0) {
+        int levelIndex = constrain(value % levels, 0, levels - 1);
+        fill(palette[levelIndex]);
+        rect(xOffset + x * cellSize, yOffset + y * cellSize, cellSize, cellSize);
+      }
     }
   }
   noFill();
@@ -123,7 +128,7 @@ void drawSand() {
 }
 
 void drawControls() {
-  fill(30);
+  fill(0);
   noStroke();
   rect(0, 0, controlWidth, height);
 
