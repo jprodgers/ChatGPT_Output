@@ -1510,7 +1510,7 @@ func layout_grid_view(tex_size: Vector2i) -> void:
 
     var final_pixel_scale: float = pixel_scale * scale_factor
     var scaled_size: Vector2 = image_size * final_pixel_scale
-    grid_view.scale = Vector2(final_pixel_scale, final_pixel_scale)
+    grid_view.scale = Vector2.ONE
     grid_view.custom_minimum_size = scaled_size
     grid_view.size = scaled_size
     grid_view.position = (container_size - scaled_size) * 0.5
