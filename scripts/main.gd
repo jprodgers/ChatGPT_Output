@@ -1616,8 +1616,7 @@ func _process(delta: float) -> void:
             process_sand(scaled_delta)
         step_requested = false
 
-    if playback_active:
-        render_grid()
+    render_grid()
 
 func on_grid_gui_input(event: InputEvent) -> void:
     var handled: bool = false
