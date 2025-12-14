@@ -12,6 +12,7 @@ The control panel lives on the left to maximize horizontal space for the grid, s
   - Global updates-per-second gate (default 10.0) scales automata speed up or down; raise it to drive faster-than-real-time updates.
   - Edge behavior: Wrap (default), Bounce, or Fall off.
   - Alive/dead color pickers (default white/black) tint their buttons with the chosen swatch for quick reference.
+  - Optional draw mode (mouse or touch) with Paint/Erase options that directly edit the grid; erase removes cells, sand, ants, and turmites at the hovered location.
   - Random seeding with adjustable coverage percentage (default 20%) and a clear button that also clears ants/turmites/sand (automata start disabled, unseeded, paused, and all menus collapsed by default).
 - **Playback**
   - Global Play/Pause toggle plus a single-step button to advance every enabled automaton once while paused.
@@ -24,11 +25,11 @@ The control panel lives on the left to maximize horizontal space for the grid, s
   - Sweeps from the top row downward, wrapping when it reaches the bottom.
 - **Langton's Ant**
   - Spawn any number of ants with a chosen color; supports edge behaviors above.
-  - Dedicated “Clear ants” action to remove all walkers when needed and the global “Clear” grid button also removes ants.
+  - Dedicated “Clear ants” action to remove all walkers when needed; clearing also stops ant processing until new ants are spawned. The global “Clear” grid button also removes ants.
   - Per-second rate (default 1.0), auto toggle (off by default), and manual step (spawns default to a single ant).
 - **Turmite**
   - Preset rule dropdown (default `RL`) with common turn strings, plus spawn count and color picker for the walker(s); supports edge behaviors above.
-  - Per-second rate control, auto toggle (off by default), manual step, and clear action.
+  - Per-second rate control, auto toggle (off by default), manual step, and clear action; clearing also stops turmite processing until new ones spawn.
 - **Game of Life**
   - Per-second rate (float, default 1.0), auto toggle (off by default), and manual step.
   - Runs independently from ant activity.
