@@ -249,6 +249,8 @@ func build_ui() -> void:
     grid_view.set_anchors_preset(Control.PRESET_FULL_RECT)
     grid_view.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
     grid_view.modulate = Color.WHITE
+    grid_view.mouse_filter = Control.MOUSE_FILTER_PASS
+    view_container.mouse_filter = Control.MOUSE_FILTER_PASS
     view_container.add_child(grid_view)
 
     view_container.resized.connect(func() -> void:
