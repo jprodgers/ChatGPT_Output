@@ -912,7 +912,10 @@ func update_grid_size() -> void:
         viewport_size = Vector2i(get_viewport_rect().size)
     if viewport_size.x <= 0 or viewport_size.y <= 0:
         return
-    var new_size: Vector2i = Vector2i(max(1, viewport_size.x / cell_size), max(1, viewport_size.y / cell_size))
+    var new_size: Vector2i = Vector2i(
+        max(1, int((viewport_size.x + cell_size - 1) / cell_size)),
+        max(1, int((viewport_size.y + cell_size - 1) / cell_size))
+    )
     var size_changed: bool = new_size != grid_size or grid.size() != new_size.x * new_size.y
     if size_changed:
         var old_size: Vector2i = grid_size
@@ -1495,10 +1498,16 @@ func layout_grid_view(tex_size: Vector2i) -> void:
     grid_view.scale = Vector2.ONE
     grid_view.size = display_size
     grid_view.custom_minimum_size = display_size
-    grid_view.position = (container_size - display_size) * 0.5
+    var offset: Vector2 = Vector2.ZERO
+    if display_size.x < container_size.x:
+        offset.x = (container_size.x - display_size.x) * 0.5
+    if display_size.y < container_size.y:
+        offset.y = (container_size.y - display_size.y) * 0.5
+    grid_view.position = offset
 
 func export_grid_image() -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:
+        info_label.text = "Export failed (empty grid)"
         return
     render_grid()
     var img: Image = build_export_image()
@@ -1515,13 +1524,14 @@ func export_grid_image() -> void:
         else:
             info_label.text = "Export failed (empty buffer)"
     else:
-        var dir_path: String = path.get_base_dir()
+        var abs_path: String = ProjectSettings.globalize_path(path)
+        var dir_path: String = abs_path.get_base_dir()
         if dir_path != "" and dir_path != ".":
             DirAccess.make_dir_recursive_absolute(dir_path)
-        var err: int = img.save_png(path)
+        var err: int = img.save_png(abs_path)
         if err == OK:
             export_counter += 1
-            info_label.text = "Exported: %s" % path
+            info_label.text = "Exported: %s" % abs_path
         else:
             info_label.text = "Export failed (%d)" % err
     render_grid()
