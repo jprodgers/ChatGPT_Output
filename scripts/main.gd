@@ -256,11 +256,11 @@ func build_ui() -> void:
     view_container.custom_minimum_size = Vector2(200, 200)
     root.add_child(view_container)
 
-    grid_view.stretch_mode = TextureRect.STRETCH_SCALE
+    grid_view.stretch_mode = TextureRect.STRETCH_KEEP
     grid_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     grid_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     grid_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    grid_view.set_anchors_preset(Control.PRESET_FULL_RECT)
+    grid_view.set_anchors_preset(Control.PRESET_TOP_LEFT)
     grid_view.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
     grid_view.modulate = Color.WHITE
     grid_view.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1436,6 +1436,24 @@ func render_grid() -> void:
     var img: Image = build_grid_image()
     var tex: ImageTexture = ImageTexture.create_from_image(img)
     grid_view.texture = tex
+    layout_grid_view(Vector2i(tex.get_width(), tex.get_height()))
+    
+func layout_grid_view(tex_size: Vector2i) -> void:
+    if view_container == null:
+        return
+    var container_size: Vector2 = view_container.get_rect().size
+    var image_size: Vector2 = Vector2(max(1, tex_size.x), max(1, tex_size.y))
+    var scale_factor: float = 1.0
+    if container_size.x > 0.0 and container_size.y > 0.0:
+        scale_factor = floor(min(container_size.x / image_size.x, container_size.y / image_size.y))
+        if scale_factor < 1.0:
+            scale_factor = 1.0
+
+    var scaled_size: Vector2 = image_size * scale_factor
+    grid_view.scale = Vector2(scale_factor, scale_factor)
+    grid_view.custom_minimum_size = scaled_size
+    grid_view.size = scaled_size
+    grid_view.position = (container_size - scaled_size) * 0.5
 
 func export_grid_image() -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:
