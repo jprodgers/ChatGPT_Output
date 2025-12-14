@@ -1483,6 +1483,7 @@ func render_grid() -> void:
         grid_material.set_shader_parameter("grid_line_color", grid_line_color)
         grid_material.set_shader_parameter("grid_line_thickness", float(grid_line_thickness))
         grid_material.set_shader_parameter("cell_size", float(cell_size))
+        grid_view.queue_redraw()
     layout_grid_view(Vector2i(grid_size.x, grid_size.y))
 
 func update_image_texture(tex: ImageTexture, img: Image) -> ImageTexture:
