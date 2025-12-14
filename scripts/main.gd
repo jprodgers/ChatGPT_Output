@@ -46,6 +46,7 @@ var sand_accumulator: float = 0.0
 var sand_enabled: bool = false
 var sand_grid: PackedInt32Array = PackedInt32Array()
 var sand_drop_amount: int = 1000
+var sand_drop_at_click: bool = false
 
 const SAND_PALETTE_PRESETS: Dictionary = {
     "Desert": [Color(0.93, 0.82, 0.57), Color(0.86, 0.67, 0.45), Color(0.71, 0.52, 0.33), Color(0.49, 0.36, 0.25)],
@@ -83,6 +84,10 @@ var ant_colors: Array[Color] = []
 var seed_fill: float = 0.2
 
 var global_rate: float = 10.0
+
+var grid_lines_enabled: bool = false
+var grid_line_thickness: int = 1
+var grid_line_color: Color = Color(0.2, 0.2, 0.2)
 
 var draw_enabled: bool = false
 var draw_mode: int = DRAW_MODE_PAINT
@@ -124,6 +129,10 @@ var export_counter: int = 0
 var sand_color_pickers: Array[ColorPickerButton] = []
 @onready var draw_mode_option: OptionButton = OptionButton.new()
 @onready var draw_toggle: CheckBox = CheckBox.new()
+@onready var sand_click_toggle: CheckBox = CheckBox.new()
+@onready var grid_line_toggle: CheckBox = CheckBox.new()
+@onready var grid_line_thickness_spin: SpinBox = SpinBox.new()
+@onready var grid_line_color_picker: ColorPickerButton = ColorPickerButton.new()
 
 func style_picker_button(picker: ColorPickerButton) -> void:
     picker.custom_minimum_size = Vector2(32, 32)
@@ -153,6 +162,11 @@ func style_picker_button(picker: ColorPickerButton) -> void:
 func apply_picker_color(picker: ColorPickerButton, color: Color) -> void:
     picker.color = color
     picker.modulate = color
+
+func update_grid_line_controls() -> void:
+    grid_line_thickness_spin.editable = grid_lines_enabled
+    grid_line_thickness_spin.mouse_filter = Control.MOUSE_FILTER_STOP
+    grid_line_color_picker.disabled = not grid_lines_enabled
 
 func set_sand_palette_by_name(name: String) -> void:
     sand_palette_name = name
@@ -260,6 +274,8 @@ func build_ui() -> void:
         render_grid()
     )
 
+    update_grid_line_controls()
+
     ui_ready = true
 
 func initialize_grid() -> void:
@@ -355,6 +371,37 @@ func build_grid_controls() -> VBoxContainer:
     color_row.add_child(alive_picker)
     color_row.add_child(dead_picker)
     box.add_child(color_row)
+
+    var grid_line_row: HBoxContainer = HBoxContainer.new()
+    var grid_line_label: Label = Label.new()
+    grid_line_label.text = "Grid lines"
+    grid_line_row.add_child(grid_line_label)
+    grid_line_toggle.text = "Show"
+    grid_line_toggle.button_pressed = grid_lines_enabled
+    grid_line_toggle.toggled.connect(func(v: bool) -> void:
+        grid_lines_enabled = v
+        update_grid_line_controls()
+        render_grid()
+    )
+    grid_line_row.add_child(grid_line_toggle)
+    grid_line_thickness_spin.min_value = 1
+    grid_line_thickness_spin.max_value = 16
+    grid_line_thickness_spin.step = 1
+    grid_line_thickness_spin.value = grid_line_thickness
+    grid_line_thickness_spin.value_changed.connect(func(v: float) -> void:
+        grid_line_thickness = int(v)
+        render_grid()
+    )
+    grid_line_row.add_child(grid_line_thickness_spin)
+    style_picker_button(grid_line_color_picker)
+    apply_picker_color(grid_line_color_picker, grid_line_color)
+    grid_line_color_picker.color_changed.connect(func(c: Color) -> void:
+        grid_line_color = c
+        apply_picker_color(grid_line_color_picker, c)
+        render_grid()
+    )
+    grid_line_row.add_child(grid_line_color_picker)
+    box.add_child(grid_line_row)
 
     var draw_row: HBoxContainer = HBoxContainer.new()
     var draw_label: Label = Label.new()
@@ -711,6 +758,15 @@ func build_sand_controls() -> VBoxContainer:
     amount_row.add_child(drop_button)
     box.add_child(amount_row)
 
+    var click_row: HBoxContainer = HBoxContainer.new()
+    sand_click_toggle.text = "Drop at click"
+    sand_click_toggle.button_pressed = sand_drop_at_click
+    sand_click_toggle.toggled.connect(func(v: bool) -> void:
+        sand_drop_at_click = v
+    )
+    click_row.add_child(sand_click_toggle)
+    box.add_child(click_row)
+
     var rate_row: HBoxContainer = HBoxContainer.new()
     var rate_label: Label = Label.new()
     rate_label.text = "Steps/sec"
@@ -973,32 +1029,35 @@ func apply_draw_action(pos: Vector2i) -> bool:
     changed = remove_turmites_at(pos) or changed
     return changed
 
-func handle_draw_input(global_pos: Vector2) -> bool:
+func local_to_cell(local_pos: Vector2) -> Vector2i:
     if grid_size.x <= 0 or grid_size.y <= 0:
-        return false
+        return Vector2i(-1, -1)
+    var size: Vector2 = grid_view.size
+    if size.x <= 0.0 or size.y <= 0.0:
+        return Vector2i(-1, -1)
+    var gx: int = int(floor(local_pos.x / size.x * float(grid_size.x)))
+    var gy: int = int(floor(local_pos.y / size.y * float(grid_size.y)))
+    return Vector2i(clamp(gx, 0, grid_size.x - 1), clamp(gy, 0, grid_size.y - 1))
+
+func handle_draw_input(global_pos: Vector2) -> bool:
     var rect: Rect2 = grid_view.get_global_rect()
     if rect.size.x <= 0 or rect.size.y <= 0:
         return false
     if not rect.has_point(global_pos):
         return false
     var local: Vector2 = global_pos - rect.position
-    var gx: int = int(floor(local.x / rect.size.x * float(grid_size.x)))
-    var gy: int = int(floor(local.y / rect.size.y * float(grid_size.y)))
-    var pos: Vector2i = Vector2i(clamp(gx, 0, grid_size.x - 1), clamp(gy, 0, grid_size.y - 1))
+    var pos: Vector2i = local_to_cell(local)
+    if pos.x < 0 or pos.y < 0:
+        return false
     var changed: bool = apply_draw_action(pos)
     if changed:
         render_grid()
     return changed
 
 func handle_draw_local(local_pos: Vector2) -> bool:
-    if grid_size.x <= 0 or grid_size.y <= 0:
+    var pos: Vector2i = local_to_cell(local_pos)
+    if pos.x < 0 or pos.y < 0:
         return false
-    var size: Vector2 = grid_view.size
-    if size.x <= 0.0 or size.y <= 0.0:
-        return false
-    var gx: int = int(floor(local_pos.x / size.x * float(grid_size.x)))
-    var gy: int = int(floor(local_pos.y / size.y * float(grid_size.y)))
-    var pos: Vector2i = Vector2i(clamp(gx, 0, grid_size.x - 1), clamp(gy, 0, grid_size.y - 1))
     var changed: bool = apply_draw_action(pos)
     if changed:
         render_grid()
@@ -1279,16 +1338,21 @@ func step_turmites() -> void:
         turmite_directions.remove_at(remove_idx)
         turmite_colors.remove_at(remove_idx)
 
-func add_sand_to_center(amount: int) -> void:
+func add_sand_at(pos: Vector2i, amount: int) -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:
+        return
+    if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
         return
     if sand_grid.size() != grid_size.x * grid_size.y:
         sand_grid.resize(grid_size.x * grid_size.y)
         sand_grid.fill(0)
-    var center: Vector2i = Vector2i(grid_size.x / 2, grid_size.y / 2)
-    var idx: int = center.y * grid_size.x + center.x
+    var idx: int = pos.y * grid_size.x + pos.x
     if idx >= 0 and idx < sand_grid.size():
         sand_grid[idx] += max(0, amount)
+
+func add_sand_to_center(amount: int) -> void:
+    var center: Vector2i = Vector2i(grid_size.x / 2, grid_size.y / 2)
+    add_sand_at(center, amount)
 
 func clear_sand() -> void:
     sand_grid.fill(0)
@@ -1345,6 +1409,25 @@ func build_grid_image() -> Image:
             for oy in range(cell_size):
                 for ox in range(cell_size):
                     img.set_pixel(x * cell_size + ox, y * cell_size + oy, color)
+    if grid_lines_enabled and grid_line_thickness > 0:
+        var width: int = grid_size.x * cell_size
+        var height: int = grid_size.y * cell_size
+        for gx in range(grid_size.x + 1):
+            var start_x: int = gx * cell_size
+            for t in range(grid_line_thickness):
+                var px: int = start_x + t
+                if px >= width:
+                    continue
+                for py in range(height):
+                    img.set_pixel(px, py, grid_line_color)
+        for gy in range(grid_size.y + 1):
+            var start_y: int = gy * cell_size
+            for t in range(grid_line_thickness):
+                var py: int = start_y + t
+                if py >= height:
+                    continue
+                for px in range(width):
+                    img.set_pixel(px, py, grid_line_color)
     return img
 
 func render_grid() -> void:
@@ -1448,7 +1531,19 @@ func _process(delta: float) -> void:
         render_grid()
 
 func on_grid_gui_input(event: InputEvent) -> void:
+    var handled: bool = false
+    if sand_drop_at_click and event is InputEventMouseButton:
+        var sand_mouse: InputEventMouseButton = event as InputEventMouseButton
+        if sand_mouse.button_index == MOUSE_BUTTON_LEFT and sand_mouse.pressed:
+            var pos: Vector2i = local_to_cell(sand_mouse.position)
+            if pos.x >= 0 and pos.y >= 0:
+                add_sand_at(pos, sand_drop_amount)
+                render_grid()
+                handled = true
+
     if not draw_enabled:
+        if handled:
+            accept_event()
         return
     if event is InputEventMouseButton:
         var mouse_event: InputEventMouseButton = event as InputEventMouseButton
@@ -1456,23 +1551,26 @@ func on_grid_gui_input(event: InputEvent) -> void:
             drawing_active = mouse_event.pressed
             if mouse_event.pressed:
                 handle_draw_local(mouse_event.position)
-            accept_event()
+            handled = true
     elif event is InputEventMouseMotion:
         var motion: InputEventMouseMotion = event as InputEventMouseMotion
         if drawing_active and (motion.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
             handle_draw_local(motion.position)
-            accept_event()
+            handled = true
     elif event is InputEventScreenTouch:
         var touch_event: InputEventScreenTouch = event as InputEventScreenTouch
         drawing_active = touch_event.pressed
         if touch_event.pressed:
             handle_draw_local(touch_event.position)
-        accept_event()
+        handled = true
     elif event is InputEventScreenDrag:
         var drag: InputEventScreenDrag = event as InputEventScreenDrag
         if drawing_active:
             handle_draw_local(drag.position)
-            accept_event()
+            handled = true
+
+    if handled:
+        accept_event()
 
 func _unhandled_input(event: InputEvent) -> void:
     if not draw_enabled:

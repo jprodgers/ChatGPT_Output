@@ -11,6 +11,7 @@ The control panel lives on the left to maximize horizontal space for the grid, s
   - Cell size slider (1–128 px, default 8) keeps the grid aligned to the viewport area beside the sidebar; resizing or changing cell size rebuilds the grid.
   - Global updates-per-second gate (default 10.0) scales automata speed up or down; raise it to drive faster-than-real-time updates.
   - Edge behavior: Wrap (default), Bounce, or Fall off.
+  - Optional grid lines with adjustable thickness and color (hidden by default) for visual guides without affecting simulation data.
   - Alive/dead color pickers (default white/black) tint their buttons with the chosen swatch for quick reference.
   - Optional draw mode (mouse or touch) with Paint/Erase options that directly edit the grid; erase removes cells, sand, ants, and turmites at the hovered location.
   - Random seeding with adjustable coverage percentage (default 20%) and a clear button that also clears ants/turmites/sand (automata start disabled, unseeded, paused, and all menus collapsed by default).
@@ -39,7 +40,7 @@ The control panel lives on the left to maximize horizontal space for the grid, s
   - Per-second rate control, auto toggle (off by default), and manual step for the B2/S0 rule.
 - **Falling Sand**
   - Palette dropdown (Desert/Pastel/Neon/Grayscale/Custom) plus four per-level color pickers to tune sand heights.
-  - Center-drop amount field and **Drop** button to pour `N` grains into the grid center; **Clear sand** resets the pile.
+  - Center-drop amount field and **Drop** button to pour `N` grains into the grid center; optional “Drop at click” toggle uses the same amount at the clicked cell instead. **Clear sand** resets the pile.
   - Per-second rate, auto toggle (off by default), and manual step; each step topples any cell with 4+ grains into its 4 neighbors respecting the edge behavior.
 
 ## Suggested Workflow
