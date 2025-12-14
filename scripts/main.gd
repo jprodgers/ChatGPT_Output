@@ -1587,45 +1587,36 @@ func resolve_web_export_filename(path: String) -> String:
 func _process(delta: float) -> void:
     if not ui_ready:
         return
-    if is_paused and not step_requested:
-        return
 
-    var updated: bool = false
-
-    if step_requested:
-        if wolfram_enabled:
-            step_wolfram()
-            updated = true
-        if ants_enabled:
-            step_ants()
-            updated = true
-        if gol_enabled:
-            step_game_of_life()
-            updated = true
-        if day_night_enabled:
-            step_day_night()
-            updated = true
-        if seeds_enabled:
-            step_seeds()
-            updated = true
-        if turmite_enabled:
-            step_turmites()
-            updated = true
-        if sand_enabled:
-            step_sand()
-            updated = true
+    var playback_active: bool = not is_paused or step_requested
+    if playback_active:
+        if step_requested:
+            if wolfram_enabled:
+                step_wolfram()
+            if ants_enabled:
+                step_ants()
+            if gol_enabled:
+                step_game_of_life()
+            if day_night_enabled:
+                step_day_night()
+            if seeds_enabled:
+                step_seeds()
+            if turmite_enabled:
+                step_turmites()
+            if sand_enabled:
+                step_sand()
+        else:
+            var scaled_delta: float = delta * max(global_rate, 0.0)
+            process_wolfram(scaled_delta)
+            process_ants(scaled_delta)
+            process_game_of_life(scaled_delta)
+            process_day_night(scaled_delta)
+            process_seeds(scaled_delta)
+            process_turmites(scaled_delta)
+            process_sand(scaled_delta)
         step_requested = false
-    else:
-        var scaled_delta: float = delta * max(global_rate, 0.0)
-        updated = process_wolfram(scaled_delta) or updated
-        updated = process_ants(scaled_delta) or updated
-        updated = process_game_of_life(scaled_delta) or updated
-        updated = process_day_night(scaled_delta) or updated
-        updated = process_seeds(scaled_delta) or updated
-        updated = process_turmites(scaled_delta) or updated
-        updated = process_sand(scaled_delta) or updated
 
-    if updated or not is_paused:
+    if playback_active:
         render_grid()
 
 func on_grid_gui_input(event: InputEvent) -> void:
