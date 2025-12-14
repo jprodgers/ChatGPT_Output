@@ -249,9 +249,11 @@ func build_ui() -> void:
     grid_view.set_anchors_preset(Control.PRESET_FULL_RECT)
     grid_view.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
     grid_view.modulate = Color.WHITE
-    grid_view.mouse_filter = Control.MOUSE_FILTER_PASS
-    view_container.mouse_filter = Control.MOUSE_FILTER_PASS
+    grid_view.mouse_filter = Control.MOUSE_FILTER_STOP
+    view_container.mouse_filter = Control.MOUSE_FILTER_STOP
     view_container.add_child(grid_view)
+
+    grid_view.gui_input.connect(on_grid_gui_input)
 
     view_container.resized.connect(func() -> void:
         update_grid_size()
@@ -988,6 +990,20 @@ func handle_draw_input(global_pos: Vector2) -> bool:
         render_grid()
     return changed
 
+func handle_draw_local(local_pos: Vector2) -> bool:
+    if grid_size.x <= 0 or grid_size.y <= 0:
+        return false
+    var size: Vector2 = grid_view.size
+    if size.x <= 0.0 or size.y <= 0.0:
+        return false
+    var gx: int = int(floor(local_pos.x / size.x * float(grid_size.x)))
+    var gy: int = int(floor(local_pos.y / size.y * float(grid_size.y)))
+    var pos: Vector2i = Vector2i(clamp(gx, 0, grid_size.x - 1), clamp(gy, 0, grid_size.y - 1))
+    var changed: bool = apply_draw_action(pos)
+    if changed:
+        render_grid()
+    return changed
+
 func process_wolfram(delta: float) -> bool:
     if not wolfram_enabled or wolfram_rate <= 0.0:
         return false
@@ -1430,6 +1446,33 @@ func _process(delta: float) -> void:
 
     if updated:
         render_grid()
+
+func on_grid_gui_input(event: InputEvent) -> void:
+    if not draw_enabled:
+        return
+    if event is InputEventMouseButton:
+        var mouse_event: InputEventMouseButton = event as InputEventMouseButton
+        if mouse_event.button_index == MOUSE_BUTTON_LEFT:
+            drawing_active = mouse_event.pressed
+            if mouse_event.pressed:
+                handle_draw_local(mouse_event.position)
+            event.accept()
+    elif event is InputEventMouseMotion:
+        var motion: InputEventMouseMotion = event as InputEventMouseMotion
+        if drawing_active and (motion.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+            handle_draw_local(motion.position)
+            event.accept()
+    elif event is InputEventScreenTouch:
+        var touch_event: InputEventScreenTouch = event as InputEventScreenTouch
+        drawing_active = touch_event.pressed
+        if touch_event.pressed:
+            handle_draw_local(touch_event.position)
+        event.accept()
+    elif event is InputEventScreenDrag:
+        var drag: InputEventScreenDrag = event as InputEventScreenDrag
+        if drawing_active:
+            handle_draw_local(drag.position)
+            event.accept()
 
 func _unhandled_input(event: InputEvent) -> void:
     if not draw_enabled:
