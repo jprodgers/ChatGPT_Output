@@ -39,7 +39,7 @@ The control panel lives on the left to maximize horizontal space for the grid, s
 - **Seeds**
   - Per-second rate control, auto toggle (off by default), and manual step for the B2/S0 rule.
 - **Falling Sand**
-  - Palette dropdown (Desert/Pastel/Neon/Grayscale/Custom) plus four per-level color pickers to tune sand heights.
+  - Palette dropdown (Desert/Pastel/Neon/Rainbow/Sunset/Forest/Grayscale/Custom) plus four per-level color pickers to tune sand heights.
   - Center-drop amount field and **Drop** button to pour `N` grains into the grid center; optional “Drop at click” toggle uses the same amount at the clicked cell instead. **Clear sand** resets the pile.
   - Per-second rate, auto toggle (off by default), and manual step; each step topples any cell with 4+ grains into its 4 neighbors respecting the edge behavior.
 

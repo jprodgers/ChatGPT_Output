@@ -52,9 +52,21 @@ const SAND_PALETTE_PRESETS: Dictionary = {
     "Desert": [Color(0.93, 0.82, 0.57), Color(0.86, 0.67, 0.45), Color(0.71, 0.52, 0.33), Color(0.49, 0.36, 0.25)],
     "Pastel": [Color(0.91, 0.91, 0.98), Color(0.74, 0.86, 0.96), Color(0.56, 0.77, 0.93), Color(0.38, 0.69, 0.89)],
     "Neon": [Color(0.0, 1.0, 0.59), Color(0.39, 0.96, 0.99), Color(0.93, 0.2, 0.93), Color(1.0, 0.53, 0.0)],
+    "Rainbow": [Color(0.55, 0.0, 0.0), Color(1.0, 0.85, 0.1), Color(0.15, 0.45, 1.0), Color(0.6, 0.25, 0.8)],
+    "Sunset": [Color(0.98, 0.54, 0.2), Color(0.97, 0.8, 0.36), Color(0.89, 0.35, 0.36), Color(0.55, 0.16, 0.35)],
+    "Forest": [Color(0.18, 0.35, 0.2), Color(0.31, 0.55, 0.32), Color(0.5, 0.74, 0.45), Color(0.73, 0.89, 0.64)],
     "Grayscale": [Color(0.2, 0.2, 0.2), Color(0.4, 0.4, 0.4), Color(0.6, 0.6, 0.6), Color(0.85, 0.85, 0.85)]
 }
-const SAND_PALETTE_ORDER: Array[String] = ["Desert", "Pastel", "Neon", "Grayscale", "Custom"]
+const SAND_PALETTE_ORDER: Array[String] = [
+    "Desert",
+    "Pastel",
+    "Neon",
+    "Rainbow",
+    "Sunset",
+    "Forest",
+    "Grayscale",
+    "Custom",
+]
 var sand_palette_name: String = "Desert"
 var sand_colors: Array[Color] = []
 
