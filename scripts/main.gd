@@ -276,13 +276,14 @@ func build_ui() -> void:
     view_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
     view_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     view_container.custom_minimum_size = Vector2(200, 200)
+    view_container.clip_contents = true
     root.add_child(view_container)
 
-    grid_view.stretch_mode = TextureRect.STRETCH_KEEP
+    grid_view.stretch_mode = TextureRect.STRETCH_SCALE
     grid_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
     grid_view.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     grid_view.size_flags_vertical = Control.SIZE_EXPAND_FILL
-    grid_view.set_anchors_preset(Control.PRESET_TOP_LEFT)
+    grid_view.set_anchors_preset(Control.PRESET_FULL_RECT)
     grid_view.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
     grid_view.modulate = Color.WHITE
     grid_view.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -1499,13 +1500,11 @@ func layout_grid_view(tex_size: Vector2i) -> void:
     if view_container == null:
         return
     var container_size: Vector2 = view_container.get_rect().size
-    var image_size: Vector2 = Vector2(max(1, tex_size.x), max(1, tex_size.y))
-    var scaled_size: Vector2 = image_size * float(cell_size)
 
     grid_view.scale = Vector2.ONE
-    grid_view.custom_minimum_size = scaled_size
-    grid_view.size = scaled_size
-    grid_view.position = (container_size - scaled_size) * 0.5
+    grid_view.custom_minimum_size = container_size
+    grid_view.size = container_size
+    grid_view.position = Vector2.ZERO
 
 func export_grid_image() -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:

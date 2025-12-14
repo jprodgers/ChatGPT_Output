@@ -16,33 +16,32 @@ uniform float cell_size = 1.0;
 
 void fragment() {
     vec2 tex_size = vec2(textureSize(state_tex, 0));
-    if (tex_size.x <= 0.0 || tex_size.y <= 0.0) {
-        COLOR = vec4(0.0);
-        return;
-    }
 
-    vec2 cell_pos = UV * tex_size;
-    vec2 sample_uv = (floor(cell_pos) + vec2(0.5)) / tex_size;
+    vec4 base_color = vec4(0.0);
+    if (tex_size.x > 0.0 && tex_size.y > 0.0) {
+        vec2 cell_pos = UV * tex_size;
+        vec2 sample_uv = (floor(cell_pos) + vec2(0.5)) / tex_size;
 
-    float state_value = texture(state_tex, sample_uv).r;
-    float sand_value = texture(sand_tex, sample_uv).r;
-    vec4 overlay_color = texture(overlay_tex, sample_uv);
+        float state_value = texture(state_tex, sample_uv).r;
+        float sand_value = texture(sand_tex, sample_uv).r;
+        vec4 overlay_color = texture(overlay_tex, sample_uv);
 
-    vec4 base_color = mix(dead_color, alive_color, step(0.5, state_value));
-    if (sand_value > 0.0 && sand_palette_size > 0) {
-        int idx = int(mod(floor(sand_value * 255.0 + 0.5), float(sand_palette_size)));
-        base_color = sand_palette[idx];
-    }
-    if (overlay_color.a > 0.0) {
-        base_color = overlay_color;
-    }
+        base_color = mix(dead_color, alive_color, step(0.5, state_value));
+        if (sand_value > 0.0 && sand_palette_size > 0) {
+            int idx = int(mod(floor(sand_value * 255.0 + 0.5), float(sand_palette_size)));
+            base_color = sand_palette[idx];
+        }
+        if (overlay_color.a > 0.0) {
+            base_color = overlay_color;
+        }
 
-    if (grid_lines_enabled && grid_line_thickness > 0.0 && cell_size > 0.0) {
-        vec2 frac = fract(cell_pos);
-        float threshold = clamp(grid_line_thickness / cell_size, 0.0, 0.5);
-        float line_mask = step(1.0 - threshold, frac.x) + step(1.0 - threshold, frac.y);
-        if (line_mask > 0.0) {
-            base_color.rgb = mix(base_color.rgb, grid_line_color.rgb, grid_line_color.a);
+        if (grid_lines_enabled && grid_line_thickness > 0.0 && cell_size > 0.0) {
+            vec2 frac = fract(cell_pos);
+            float threshold = clamp(grid_line_thickness / cell_size, 0.0, 0.5);
+            float line_mask = step(1.0 - threshold, frac.x) + step(1.0 - threshold, frac.y);
+            if (line_mask > 0.0) {
+                base_color.rgb = mix(base_color.rgb, grid_line_color.rgb, grid_line_color.a);
+            }
         }
     }
 
