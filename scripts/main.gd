@@ -113,6 +113,12 @@ var step_requested: bool = false
 var export_pattern: String = "user://screenshot####.png"
 var export_counter: int = 0
 
+var grid_shader: Shader = null
+@onready var grid_material: ShaderMaterial = ShaderMaterial.new()
+var state_texture: ImageTexture = ImageTexture.new()
+var sand_texture: ImageTexture = ImageTexture.new()
+var overlay_texture: ImageTexture = ImageTexture.new()
+
 @onready var grid_view: TextureRect = TextureRect.new()
 @onready var info_label: Label = Label.new()
 @onready var view_container: Panel = Panel.new()
@@ -194,6 +200,10 @@ func set_sand_palette_by_name(name: String) -> void:
 
 func _ready() -> void:
     set_process(true)
+    grid_shader = load("res://shaders/grid_view.gdshader")
+    if grid_shader != null:
+        grid_material.shader = grid_shader
+        grid_view.material = grid_material
     set_sand_palette_by_name(sand_palette_name)
     build_ui()
     call_deferred("initialize_grid")
@@ -1401,7 +1411,7 @@ func step_sand() -> void:
             sand_grid[nidx] += 1
 
 func build_grid_image() -> Image:
-    var img: Image = Image.create(grid_size.x * cell_size, grid_size.y * cell_size, false, Image.FORMAT_RGBA8)
+    var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_RGBA8)
     var marker_map: Dictionary = {}
     for i in range(ants.size()):
         marker_map[ants[i]] = ant_colors[i]
@@ -1418,51 +1428,85 @@ func build_grid_image() -> Image:
                     color = sand_colors[(sand_grid[sand_idx] % palette_size + palette_size) % palette_size]
             if marker_map.has(Vector2i(x, y)):
                 color = marker_map[Vector2i(x, y)]
-            for oy in range(cell_size):
-                for ox in range(cell_size):
-                    img.set_pixel(x * cell_size + ox, y * cell_size + oy, color)
-    if grid_lines_enabled and grid_line_thickness > 0:
-        var width: int = grid_size.x * cell_size
-        var height: int = grid_size.y * cell_size
-        for gx in range(grid_size.x + 1):
-            var start_x: int = gx * cell_size
-            for t in range(grid_line_thickness):
-                var px: int = start_x + t
-                if px >= width:
-                    continue
-                for py in range(height):
-                    img.set_pixel(px, py, grid_line_color)
-        for gy in range(grid_size.y + 1):
-            var start_y: int = gy * cell_size
-            for t in range(grid_line_thickness):
-                var py: int = start_y + t
-                if py >= height:
-                    continue
-                for px in range(width):
-                    img.set_pixel(px, py, grid_line_color)
+            img.set_pixel(x, y, color)
+    return img
+
+func build_sand_image() -> Image:
+    var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_R8)
+    var data: PackedByteArray = PackedByteArray()
+    data.resize(grid_size.x * grid_size.y)
+    var palette_size: int = max(1, sand_colors.size())
+    for y in range(grid_size.y):
+        for x in range(grid_size.x):
+            var idx: int = y * grid_size.x + x
+            if idx >= sand_grid.size():
+                continue
+            var level: int = sand_grid[idx] % palette_size
+            data[idx] = level
+    img.set_data(grid_size.x, grid_size.y, false, Image.FORMAT_R8, data)
+    return img
+
+func build_overlay_image() -> Image:
+    var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_RGBA8)
+    img.fill(Color(0, 0, 0, 0))
+    for i in range(ants.size()):
+        var pos: Vector2i = ants[i]
+        if pos.x >= 0 and pos.x < grid_size.x and pos.y >= 0 and pos.y < grid_size.y:
+            img.set_pixel(pos.x, pos.y, ant_colors[i])
+    for i in range(turmites.size()):
+        var pos: Vector2i = turmites[i]
+        if pos.x >= 0 and pos.x < grid_size.x and pos.y >= 0 and pos.y < grid_size.y:
+            img.set_pixel(pos.x, pos.y, turmite_colors[i])
     return img
 
 func render_grid() -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:
         return
     var img: Image = build_grid_image()
-    var tex: ImageTexture = ImageTexture.create_from_image(img)
-    grid_view.texture = tex
-    layout_grid_view(Vector2i(tex.get_width(), tex.get_height()))
-    
+    var sand_img: Image = build_sand_image()
+    var overlay_img: Image = build_overlay_image()
+
+    state_texture = update_image_texture(state_texture, img)
+    sand_texture = update_image_texture(sand_texture, sand_img)
+    overlay_texture = update_image_texture(overlay_texture, overlay_img)
+
+    grid_view.texture = state_texture
+    if grid_material.shader != null:
+        grid_material.set_shader_parameter("state_tex", state_texture)
+        grid_material.set_shader_parameter("sand_tex", sand_texture)
+        grid_material.set_shader_parameter("overlay_tex", overlay_texture)
+        grid_material.set_shader_parameter("alive_color", alive_color)
+        grid_material.set_shader_parameter("dead_color", dead_color)
+        grid_material.set_shader_parameter("sand_palette", sand_colors)
+        grid_material.set_shader_parameter("sand_palette_size", sand_colors.size())
+        grid_material.set_shader_parameter("grid_lines_enabled", grid_lines_enabled)
+        grid_material.set_shader_parameter("grid_line_color", grid_line_color)
+        grid_material.set_shader_parameter("grid_line_thickness", float(grid_line_thickness))
+        grid_material.set_shader_parameter("cell_size", float(cell_size))
+    layout_grid_view(Vector2i(grid_size.x, grid_size.y))
+
+func update_image_texture(tex: ImageTexture, img: Image) -> ImageTexture:
+    if tex == null or tex.get_width() == 0 or tex.get_height() == 0:
+        return ImageTexture.create_from_image(img)
+    tex.update(img)
+    return tex
+
 func layout_grid_view(tex_size: Vector2i) -> void:
     if view_container == null:
         return
     var container_size: Vector2 = view_container.get_rect().size
     var image_size: Vector2 = Vector2(max(1, tex_size.x), max(1, tex_size.y))
+    var pixel_scale: float = float(cell_size)
+    var base_size: Vector2 = image_size * pixel_scale
     var scale_factor: float = 1.0
     if container_size.x > 0.0 and container_size.y > 0.0:
-        scale_factor = floor(min(container_size.x / image_size.x, container_size.y / image_size.y))
+        scale_factor = floor(min(container_size.x / base_size.x, container_size.y / base_size.y))
         if scale_factor < 1.0:
             scale_factor = 1.0
 
-    var scaled_size: Vector2 = image_size * scale_factor
-    grid_view.scale = Vector2(scale_factor, scale_factor)
+    var final_pixel_scale: float = pixel_scale * scale_factor
+    var scaled_size: Vector2 = image_size * final_pixel_scale
+    grid_view.scale = Vector2(final_pixel_scale, final_pixel_scale)
     grid_view.custom_minimum_size = scaled_size
     grid_view.size = scaled_size
     grid_view.position = (container_size - scaled_size) * 0.5
@@ -1471,6 +1515,9 @@ func export_grid_image() -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:
         return
     var img: Image = build_grid_image()
+    img.resize(grid_size.x * cell_size, grid_size.y * cell_size, Image.INTERPOLATE_NEAREST)
+    if grid_lines_enabled and grid_line_thickness > 0:
+        draw_grid_lines_on_image(img)
     var path: String = resolve_export_path()
     if Engine.has_singleton("JavaScriptBridge"):
         var buffer: PackedByteArray = img.save_png_to_buffer()
@@ -1488,6 +1535,26 @@ func export_grid_image() -> void:
         else:
             info_label.text = "Export failed (%d)" % err
     render_grid()
+
+func draw_grid_lines_on_image(img: Image) -> void:
+    var width: int = img.get_width()
+    var height: int = img.get_height()
+    for gx in range(grid_size.x + 1):
+        var start_x: int = gx * cell_size
+        for t in range(grid_line_thickness):
+            var px: int = start_x + t
+            if px >= width:
+                continue
+            for py in range(height):
+                img.set_pixel(px, py, grid_line_color)
+    for gy in range(grid_size.y + 1):
+        var start_y: int = gy * cell_size
+        for t in range(grid_line_thickness):
+            var py: int = start_y + t
+            if py >= height:
+                continue
+            for px in range(width):
+                img.set_pixel(px, py, grid_line_color)
 
 func resolve_export_path() -> String:
     var pattern: String = export_pattern

@@ -11,6 +11,7 @@ The control panel lives on the left to maximize horizontal space for the grid, s
   - Cell size slider (1–128 px, default 8) keeps the grid aligned to the viewport area beside the sidebar; resizing or changing cell size rebuilds the grid.
   - Global updates-per-second gate (default 10.0) scales automata speed up or down; raise it to drive faster-than-real-time updates.
   - Edge behavior: Wrap (default), Bounce, or Fall off.
+  - GPU-composited grid rendering: the grid and overlays are drawn at cell resolution and upscaled via a shader for lower CPU cost while preserving crisp pixel edges.
   - Optional grid lines with adjustable thickness and color (hidden by default) for visual guides without affecting simulation data.
   - Alive/dead color pickers (default white/black) tint their buttons with the chosen swatch for quick reference.
   - Optional draw mode (mouse or touch) with Paint/Erase options that directly edit the grid; erase removes cells, sand, ants, and turmites at the hovered location.
