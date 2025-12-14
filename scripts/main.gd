@@ -151,6 +151,7 @@ var sand_color_pickers: Array[ColorPickerButton] = []
 @onready var grid_line_toggle: CheckBox = CheckBox.new()
 @onready var grid_line_thickness_spin: SpinBox = SpinBox.new()
 @onready var grid_line_color_picker: ColorPickerButton = ColorPickerButton.new()
+@onready var export_dialog: FileDialog = FileDialog.new()
 
 func style_picker_button(picker: ColorPickerButton) -> void:
     picker.custom_minimum_size = Vector2(32, 32)
@@ -232,10 +233,13 @@ func build_ui() -> void:
 
     var info_row: HBoxContainer = HBoxContainer.new()
     info_row.add_theme_constant_override("separation", 6)
+    info_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     sidebar_layout.add_child(info_row)
 
     info_label.text = "Grid ready"
     info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+    info_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+    info_label.clip_text = true
     info_row.add_child(info_label)
 
     var play_button: Button = Button.new()
@@ -257,6 +261,19 @@ func build_ui() -> void:
     scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
     scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     sidebar_layout.add_child(scroll)
+
+    export_dialog.access = FileDialog.ACCESS_FILESYSTEM
+    export_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
+    export_dialog.filters = ["*.png"]
+    export_dialog.title = "Export grid PNG"
+    export_dialog.transient = true
+    export_dialog.use_native_dialog = true
+    export_dialog.file_selected.connect(func(path: String) -> void:
+        export_pattern = path
+        export_pattern_edit.text = path
+        export_grid_image(path)
+    )
+    add_child(export_dialog)
 
     var controls_column: VBoxContainer = VBoxContainer.new()
     controls_column.add_theme_constant_override("separation", 8)
@@ -496,7 +513,18 @@ func build_export_controls() -> VBoxContainer:
     var export_row: HBoxContainer = HBoxContainer.new()
     var export_button: Button = Button.new()
     export_button.text = "Export PNG"
-    export_button.pressed.connect(func() -> void: export_grid_image())
+    export_button.pressed.connect(func() -> void:
+        if Engine.has_singleton("JavaScriptBridge"):
+            export_grid_image(resolve_export_path())
+        else:
+            var suggested: String = resolve_export_path()
+            export_dialog.current_file = suggested.get_file()
+            var dir: String = suggested.get_base_dir()
+            if dir == "" or dir == ".":
+                dir = ProjectSettings.globalize_path("user://")
+            export_dialog.current_path = dir
+            export_dialog.popup_centered()
+    )
     export_row.add_child(export_button)
     var hint: Label = Label.new()
     hint.text = "Use # for numbering"
@@ -1505,7 +1533,7 @@ func layout_grid_view(tex_size: Vector2i) -> void:
         offset.y = (container_size.y - display_size.y) * 0.5
     grid_view.position = offset
 
-func export_grid_image() -> void:
+func export_grid_image(path: String) -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:
         info_label.text = "Export failed (empty grid)"
         return
@@ -1514,7 +1542,6 @@ func export_grid_image() -> void:
     img.resize(grid_size.x * cell_size, grid_size.y * cell_size, Image.INTERPOLATE_NEAREST)
     if grid_lines_enabled and grid_line_thickness > 0:
         draw_grid_lines_on_image(img)
-    var path: String = resolve_export_path()
     if Engine.has_singleton("JavaScriptBridge"):
         var buffer: PackedByteArray = img.save_png_to_buffer()
         if buffer.size() > 0:
