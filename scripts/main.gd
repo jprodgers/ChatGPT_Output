@@ -1456,23 +1456,23 @@ func on_grid_gui_input(event: InputEvent) -> void:
             drawing_active = mouse_event.pressed
             if mouse_event.pressed:
                 handle_draw_local(mouse_event.position)
-            event.accept()
+            accept_event()
     elif event is InputEventMouseMotion:
         var motion: InputEventMouseMotion = event as InputEventMouseMotion
         if drawing_active and (motion.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
             handle_draw_local(motion.position)
-            event.accept()
+            accept_event()
     elif event is InputEventScreenTouch:
         var touch_event: InputEventScreenTouch = event as InputEventScreenTouch
         drawing_active = touch_event.pressed
         if touch_event.pressed:
             handle_draw_local(touch_event.position)
-        event.accept()
+        accept_event()
     elif event is InputEventScreenDrag:
         var drag: InputEventScreenDrag = event as InputEventScreenDrag
         if drawing_active:
             handle_draw_local(drag.position)
-            event.accept()
+            accept_event()
 
 func _unhandled_input(event: InputEvent) -> void:
     if not draw_enabled:
