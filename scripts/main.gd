@@ -1414,7 +1414,11 @@ func step_sand() -> void:
 func build_grid_image() -> Image:
     var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_R8)
     if grid.size() == grid_size.x * grid_size.y:
-        img.set_data(grid_size.x, grid_size.y, false, Image.FORMAT_R8, grid)
+        var data: PackedByteArray = PackedByteArray()
+        data.resize(grid.size())
+        for i in range(grid.size()):
+            data[i] = 255 if grid[i] != 0 else 0
+        img.set_data(grid_size.x, grid_size.y, false, Image.FORMAT_R8, data)
     return img
 
 func build_sand_image() -> Image:
