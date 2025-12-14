@@ -1625,7 +1625,8 @@ func _process(delta: float) -> void:
         updated = process_turmites(scaled_delta) or updated
         updated = process_sand(scaled_delta) or updated
 
-    if updated:
+    var any_active: bool = wolfram_enabled or ants_enabled or gol_enabled or day_night_enabled or seeds_enabled or turmite_enabled or sand_enabled
+    if updated or (not is_paused and any_active):
         render_grid()
 
 func on_grid_gui_input(event: InputEvent) -> void:
