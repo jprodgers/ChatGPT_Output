@@ -1500,6 +1500,7 @@ func layout_grid_view(tex_size: Vector2i) -> void:
 func export_grid_image() -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:
         return
+    render_grid()
     var img: Image = build_export_image()
     img.resize(grid_size.x * cell_size, grid_size.y * cell_size, Image.INTERPOLATE_NEAREST)
     if grid_lines_enabled and grid_line_thickness > 0:
@@ -1510,10 +1511,13 @@ func export_grid_image() -> void:
         if buffer.size() > 0:
             JavaScriptBridge.download_buffer(buffer, resolve_web_export_filename(path), "image/png")
             export_counter += 1
-            info_label.text = "Exported: %s" % path
+            info_label.text = "Exported: %s" % resolve_web_export_filename(path)
         else:
             info_label.text = "Export failed (empty buffer)"
     else:
+        var dir_path: String = path.get_base_dir()
+        if dir_path != "" and dir_path != ".":
+            DirAccess.make_dir_recursive_absolute(dir_path)
         var err: int = img.save_png(path)
         if err == OK:
             export_counter += 1
