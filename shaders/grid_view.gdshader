@@ -15,7 +15,7 @@ uniform float grid_line_thickness = 1.0;
 uniform float cell_size = 1.0;
 
 void fragment() {
-    vec2 tex_size = vec2(texture_size(state_tex, 0));
+    vec2 tex_size = vec2(textureSize(state_tex, 0));
     if (tex_size.x <= 0.0 || tex_size.y <= 0.0) {
         COLOR = vec4(0.0);
         return;

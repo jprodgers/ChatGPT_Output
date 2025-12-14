@@ -1487,9 +1487,12 @@ func render_grid() -> void:
     layout_grid_view(Vector2i(grid_size.x, grid_size.y))
 
 func update_image_texture(tex: ImageTexture, img: Image) -> ImageTexture:
-    if tex == null or tex.get_width() == 0 or tex.get_height() == 0:
+    if tex == null:
         return ImageTexture.create_from_image(img)
-    tex.update(img)
+    if tex.get_width() != img.get_width() or tex.get_height() != img.get_height():
+        tex = ImageTexture.create_from_image(img)
+    else:
+        tex.update(img)
     return tex
 
 func layout_grid_view(tex_size: Vector2i) -> void:
