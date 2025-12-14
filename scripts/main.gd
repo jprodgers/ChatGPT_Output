@@ -1412,24 +1412,9 @@ func step_sand() -> void:
             sand_grid[nidx] += 1
 
 func build_grid_image() -> Image:
-    var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_RGBA8)
-    var marker_map: Dictionary = {}
-    for i in range(ants.size()):
-        marker_map[ants[i]] = ant_colors[i]
-    for i in range(turmites.size()):
-        marker_map[turmites[i]] = turmite_colors[i]
-    for y in range(grid_size.y):
-        for x in range(grid_size.x):
-            var sand_idx: int = y * grid_size.x + x
-            var has_sand: bool = sand_idx < sand_grid.size() and sand_grid[sand_idx] > 0
-            var color: Color = dead_color if grid[y * grid_size.x + x] == 0 else alive_color
-            if has_sand:
-                var palette_size: int = sand_colors.size()
-                if palette_size > 0:
-                    color = sand_colors[(sand_grid[sand_idx] % palette_size + palette_size) % palette_size]
-            if marker_map.has(Vector2i(x, y)):
-                color = marker_map[Vector2i(x, y)]
-            img.set_pixel(x, y, color)
+    var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_R8)
+    if grid.size() == grid_size.x * grid_size.y:
+        img.set_data(grid_size.x, grid_size.y, false, Image.FORMAT_R8, grid)
     return img
 
 func build_sand_image() -> Image:
@@ -1449,7 +1434,6 @@ func build_sand_image() -> Image:
 
 func build_overlay_image() -> Image:
     var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_RGBA8)
-    img.fill(Color(0, 0, 0, 0))
     for i in range(ants.size()):
         var pos: Vector2i = ants[i]
         if pos.x >= 0 and pos.x < grid_size.x and pos.y >= 0 and pos.y < grid_size.y:
@@ -1500,16 +1484,19 @@ func layout_grid_view(tex_size: Vector2i) -> void:
     if view_container == null:
         return
     var container_size: Vector2 = view_container.get_rect().size
+    if tex_size.x <= 0 or tex_size.y <= 0:
+        return
 
+    var display_size: Vector2 = Vector2(tex_size) * float(cell_size)
     grid_view.scale = Vector2.ONE
-    grid_view.custom_minimum_size = container_size
-    grid_view.size = container_size
-    grid_view.position = Vector2.ZERO
+    grid_view.size = display_size
+    grid_view.custom_minimum_size = display_size
+    grid_view.position = (container_size - display_size) * 0.5
 
 func export_grid_image() -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:
         return
-    var img: Image = build_grid_image()
+    var img: Image = build_export_image()
     img.resize(grid_size.x * cell_size, grid_size.y * cell_size, Image.INTERPOLATE_NEAREST)
     if grid_lines_enabled and grid_line_thickness > 0:
         draw_grid_lines_on_image(img)
@@ -1530,6 +1517,26 @@ func export_grid_image() -> void:
         else:
             info_label.text = "Export failed (%d)" % err
     render_grid()
+
+func build_export_image() -> Image:
+    var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_RGBA8)
+    var palette_size: int = max(1, sand_colors.size())
+    var overlay_map: Dictionary = {}
+    for i in range(ants.size()):
+        overlay_map[ants[i]] = ant_colors[i]
+    for i in range(turmites.size()):
+        overlay_map[turmites[i]] = turmite_colors[i]
+    for y in range(grid_size.y):
+        for x in range(grid_size.x):
+            var idx: int = y * grid_size.x + x
+            var color: Color = dead_color if grid[idx] == 0 else alive_color
+            if idx < sand_grid.size() and sand_grid[idx] > 0:
+                color = sand_colors[(sand_grid[idx] % palette_size + palette_size) % palette_size]
+            var pos: Vector2i = Vector2i(x, y)
+            if overlay_map.has(pos):
+                color = overlay_map[pos]
+            img.set_pixel(x, y, color)
+    return img
 
 func draw_grid_lines_on_image(img: Image) -> void:
     var width: int = img.get_width()
