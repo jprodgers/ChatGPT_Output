@@ -108,6 +108,8 @@ var drawing_active: bool = false
 var ui_ready: bool = false
 var is_paused: bool = true
 
+var render_pending: bool = false
+
 var step_requested: bool = false
 
 var export_pattern: String = "user://screenshot####.png"
@@ -208,6 +210,9 @@ func _ready() -> void:
     set_sand_palette_by_name(sand_palette_name)
     build_ui()
     call_deferred("initialize_grid")
+
+func request_render() -> void:
+    render_pending = true
 
 func build_ui() -> void:
     var root: HBoxContainer = HBoxContainer.new()
@@ -311,7 +316,7 @@ func build_ui() -> void:
 
     view_container.resized.connect(func() -> void:
         update_grid_size()
-        render_grid()
+        request_render()
     )
 
     update_grid_line_controls()
@@ -320,7 +325,7 @@ func build_ui() -> void:
 
 func initialize_grid() -> void:
     update_grid_size()
-    render_grid()
+    request_render()
 
 func build_collapsible_section(title: String, content: Control) -> VBoxContainer:
     var wrapper: VBoxContainer = VBoxContainer.new()
@@ -359,7 +364,7 @@ func build_grid_controls() -> VBoxContainer:
     cell_size_spin.value_changed.connect(func(value: float) -> void:
         cell_size = int(value)
         update_grid_size()
-        render_grid()
+        request_render()
     )
     size_row.add_child(cell_size_spin)
     box.add_child(size_row)
@@ -399,14 +404,14 @@ func build_grid_controls() -> VBoxContainer:
     alive_picker.color_changed.connect(func(c: Color) -> void:
         alive_color = c
         apply_picker_color(alive_picker, c)
-        render_grid()
+        request_render()
     )
     style_picker_button(dead_picker)
     apply_picker_color(dead_picker, dead_color)
     dead_picker.color_changed.connect(func(c: Color) -> void:
         dead_color = c
         apply_picker_color(dead_picker, c)
-        render_grid()
+        request_render()
     )
     color_row.add_child(alive_picker)
     color_row.add_child(dead_picker)
@@ -421,7 +426,7 @@ func build_grid_controls() -> VBoxContainer:
     grid_line_toggle.toggled.connect(func(v: bool) -> void:
         grid_lines_enabled = v
         update_grid_line_controls()
-        render_grid()
+        request_render()
     )
     grid_line_row.add_child(grid_line_toggle)
     grid_line_thickness_spin.min_value = 1
@@ -430,7 +435,7 @@ func build_grid_controls() -> VBoxContainer:
     grid_line_thickness_spin.value = grid_line_thickness
     grid_line_thickness_spin.value_changed.connect(func(v: float) -> void:
         grid_line_thickness = int(v)
-        render_grid()
+        request_render()
     )
     grid_line_row.add_child(grid_line_thickness_spin)
     style_picker_button(grid_line_color_picker)
@@ -438,7 +443,7 @@ func build_grid_controls() -> VBoxContainer:
     grid_line_color_picker.color_changed.connect(func(c: Color) -> void:
         grid_line_color = c
         apply_picker_color(grid_line_color_picker, c)
-        render_grid()
+        request_render()
     )
     grid_line_row.add_child(grid_line_color_picker)
     box.add_child(grid_line_row)
@@ -476,7 +481,7 @@ func build_grid_controls() -> VBoxContainer:
     fill_row.add_child(fill_spin)
     var seed_button: Button = Button.new()
     seed_button.text = "Randomize"
-    seed_button.pressed.connect(func() -> void: random_fill_grid(); render_grid())
+    seed_button.pressed.connect(func() -> void: random_fill_grid(); request_render())
     fill_row.add_child(seed_button)
     box.add_child(fill_row)
 
@@ -487,7 +492,7 @@ func build_grid_controls() -> VBoxContainer:
         clear_ants()
         clear_turmites()
         clear_sand()
-        render_grid()
+        request_render()
     )
     box.add_child(clear_button)
 
@@ -569,18 +574,18 @@ func build_wolfram_controls() -> VBoxContainer:
     buttons.add_child(toggle)
     var step: Button = Button.new()
     step.text = "Step"
-    step.pressed.connect(func() -> void: step_wolfram(); render_grid())
+    step.pressed.connect(func() -> void: step_wolfram(); request_render())
     buttons.add_child(step)
     box.add_child(buttons)
 
     var seed_row: HBoxContainer = HBoxContainer.new()
     var random_seed: Button = Button.new()
     random_seed.text = "Seed top row"
-    random_seed.pressed.connect(func() -> void: seed_wolfram_row(true); render_grid())
+    random_seed.pressed.connect(func() -> void: seed_wolfram_row(true); request_render())
     seed_row.add_child(random_seed)
     var center_seed: Button = Button.new()
     center_seed.text = "Center dot"
-    center_seed.pressed.connect(func() -> void: seed_wolfram_row(false); render_grid())
+    center_seed.pressed.connect(func() -> void: seed_wolfram_row(false); request_render())
     seed_row.add_child(center_seed)
     box.add_child(seed_row)
 
@@ -589,7 +594,7 @@ func build_wolfram_controls() -> VBoxContainer:
     fill_button.text = "Fill screen"
     fill_button.pressed.connect(func() -> void:
         fill_wolfram_screen()
-        render_grid()
+        request_render()
     )
     fill_row.add_child(fill_button)
     box.add_child(fill_row)
@@ -641,14 +646,14 @@ func build_ant_controls() -> VBoxContainer:
     buttons.add_child(toggle)
     var step: Button = Button.new()
     step.text = "Step"
-    step.pressed.connect(func() -> void: step_ants(); render_grid())
+    step.pressed.connect(func() -> void: step_ants(); request_render())
     buttons.add_child(step)
     box.add_child(buttons)
 
     var clear_row: HBoxContainer = HBoxContainer.new()
     var clear_button: Button = Button.new()
     clear_button.text = "Clear ants"
-    clear_button.pressed.connect(func() -> void: clear_ants(); render_grid())
+    clear_button.pressed.connect(func() -> void: clear_ants(); request_render())
     clear_row.add_child(clear_button)
     box.add_child(clear_row)
 
@@ -679,7 +684,7 @@ func build_gol_controls() -> VBoxContainer:
     buttons.add_child(toggle)
     var step: Button = Button.new()
     step.text = "Step"
-    step.pressed.connect(func() -> void: step_game_of_life(); render_grid())
+    step.pressed.connect(func() -> void: step_game_of_life(); request_render())
     buttons.add_child(step)
     box.add_child(buttons)
 
@@ -710,7 +715,7 @@ func build_day_night_controls() -> VBoxContainer:
     buttons.add_child(toggle)
     var step: Button = Button.new()
     step.text = "Step"
-    step.pressed.connect(func() -> void: step_day_night(); render_grid())
+    step.pressed.connect(func() -> void: step_day_night(); request_render())
     buttons.add_child(step)
     box.add_child(buttons)
 
@@ -741,7 +746,7 @@ func build_seeds_controls() -> VBoxContainer:
     buttons.add_child(toggle)
     var step: Button = Button.new()
     step.text = "Step"
-    step.pressed.connect(func() -> void: step_seeds(); render_grid())
+    step.pressed.connect(func() -> void: step_seeds(); request_render())
     buttons.add_child(step)
     box.add_child(buttons)
 
@@ -762,7 +767,7 @@ func build_sand_controls() -> VBoxContainer:
     sand_palette_option.item_selected.connect(func(index: int) -> void:
         var name: String = sand_palette_option.get_item_text(index)
         set_sand_palette_by_name(name)
-        render_grid()
+        request_render()
     )
     palette_row.add_child(sand_palette_option)
     box.add_child(palette_row)
@@ -784,7 +789,7 @@ func build_sand_controls() -> VBoxContainer:
             sand_palette_name = "Custom"
             sand_palette_option.select(max(0, SAND_PALETTE_ORDER.find("Custom")))
             apply_picker_color(picker, c)
-            render_grid()
+            request_render()
         )
         sand_color_pickers.append(picker)
         color_row.add_child(picker)
@@ -804,7 +809,7 @@ func build_sand_controls() -> VBoxContainer:
     drop_button.text = "Drop"
     drop_button.pressed.connect(func() -> void:
         add_sand_to_center(sand_drop_amount)
-        render_grid()
+        request_render()
     )
     amount_row.add_child(drop_button)
     box.add_child(amount_row)
@@ -841,14 +846,14 @@ func build_sand_controls() -> VBoxContainer:
     step.text = "Step"
     step.pressed.connect(func() -> void:
         step_sand()
-        render_grid()
+        request_render()
     )
     buttons.add_child(step)
     var clear_button: Button = Button.new()
     clear_button.text = "Clear sand"
     clear_button.pressed.connect(func() -> void:
         clear_sand()
-        render_grid()
+        request_render()
     )
     buttons.add_child(clear_button)
     box.add_child(buttons)
@@ -919,13 +924,13 @@ func build_turmite_controls() -> VBoxContainer:
     buttons.add_child(toggle)
     var step: Button = Button.new()
     step.text = "Step"
-    step.pressed.connect(func() -> void: step_turmites(); render_grid())
+    step.pressed.connect(func() -> void: step_turmites(); request_render())
     buttons.add_child(step)
     var clear_button: Button = Button.new()
     clear_button.text = "Clear"
     clear_button.pressed.connect(func() -> void:
         clear_turmites()
-        render_grid()
+        request_render()
     )
     buttons.add_child(clear_button)
     box.add_child(buttons)
@@ -979,6 +984,8 @@ func update_grid_size() -> void:
     else:
         grid_size = new_size
     info_label.text = "Grid: %dx%d cells @ %d px" % [grid_size.x, grid_size.y, cell_size]
+    if size_changed:
+        request_render()
 
 func random_fill_grid() -> void:
     var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -989,6 +996,7 @@ func random_fill_grid() -> void:
         else:
             grid[i] = 0
     wolfram_row = 0
+    request_render()
 
 func seed_wolfram_row(randomize: bool) -> void:
     var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -1002,6 +1010,7 @@ func seed_wolfram_row(randomize: bool) -> void:
         var center: int = grid_size.x / 2
         grid[top_row * grid_size.x + center] = 1
     wolfram_row = 1
+    request_render()
 
 func spawn_ants(count: int, color: Color) -> void:
     var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -1010,13 +1019,14 @@ func spawn_ants(count: int, color: Color) -> void:
         ants.append(Vector2i(rng.randi_range(0, grid_size.x - 1), rng.randi_range(0, grid_size.y - 1)))
         ant_directions.append(rng.randi_range(0, DIRS.size() - 1))
         ant_colors.append(color)
-    render_grid()
+    request_render()
 
 func clear_ants() -> void:
     ants.clear()
     ant_directions.clear()
     ant_colors.clear()
     ant_accumulator = 0.0
+    request_render()
 
 func wrap_position(pos: Vector2i) -> Vector2i:
     return Vector2i(posmod(pos.x, grid_size.x), posmod(pos.y, grid_size.y))
@@ -1105,7 +1115,7 @@ func handle_draw_input(global_pos: Vector2) -> bool:
         return false
     var changed: bool = apply_draw_action(pos)
     if changed:
-        render_grid()
+        request_render()
     return changed
 
 func handle_draw_local(local_pos: Vector2) -> bool:
@@ -1114,7 +1124,7 @@ func handle_draw_local(local_pos: Vector2) -> bool:
         return false
     var changed: bool = apply_draw_action(pos)
     if changed:
-        render_grid()
+        request_render()
     return changed
 
 func process_wolfram(delta: float) -> bool:
@@ -1222,6 +1232,7 @@ func step_wolfram(allow_wrap: bool = true) -> void:
         var state: int = (wolfram_rule >> key) & 1
         set_cell(Vector2i(x, wolfram_row), state)
     wolfram_row = (wolfram_row + 1) % grid_size.y if allow_wrap else wolfram_row + 1
+    request_render()
 
 func fill_wolfram_screen() -> void:
     if grid_size.y <= 0:
@@ -1233,6 +1244,7 @@ func fill_wolfram_screen() -> void:
         step_wolfram(false)
     wolfram_enabled = false
     wolfram_accumulator = 0.0
+    request_render()
 
 func step_ants() -> void:
     var remove_indices: Array[int] = []
@@ -1271,6 +1283,8 @@ func step_ants() -> void:
         ants.remove_at(idx)
         ant_directions.remove_at(idx)
         ant_colors.remove_at(idx)
+    if not ants.is_empty() or not remove_indices.is_empty():
+        request_render()
 
 func step_game_of_life() -> void:
     step_totalistic([3], [2, 3])
@@ -1304,6 +1318,7 @@ func step_totalistic(birth: Array[int], survive: Array[int]) -> void:
                     new_val = 1
             next_state[y * grid_size.x + x] = new_val
     grid = next_state
+    request_render()
 
 func spawn_turmites(count: int, color: Color) -> void:
     var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -1312,13 +1327,14 @@ func spawn_turmites(count: int, color: Color) -> void:
         turmites.append(Vector2i(rng.randi_range(0, grid_size.x - 1), rng.randi_range(0, grid_size.y - 1)))
         turmite_directions.append(rng.randi_range(0, DIRS.size() - 1))
         turmite_colors.append(color)
-    render_grid()
+    request_render()
 
 func clear_turmites() -> void:
     turmites.clear()
     turmite_directions.clear()
     turmite_colors.clear()
     turmite_accumulator = 0.0
+    request_render()
 
 func remove_ants_at(pos: Vector2i) -> bool:
     var removed: bool = false
@@ -1391,6 +1407,8 @@ func step_turmites() -> void:
         turmites.remove_at(remove_idx)
         turmite_directions.remove_at(remove_idx)
         turmite_colors.remove_at(remove_idx)
+    if not turmites.is_empty() or not remove_indices.is_empty():
+        request_render()
 
 func add_sand_at(pos: Vector2i, amount: int) -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:
@@ -1403,6 +1421,7 @@ func add_sand_at(pos: Vector2i, amount: int) -> void:
     var idx: int = pos.y * grid_size.x + pos.x
     if idx >= 0 and idx < sand_grid.size():
         sand_grid[idx] += max(0, amount)
+        request_render()
 
 func add_sand_to_center(amount: int) -> void:
     var center: Vector2i = Vector2i(grid_size.x / 2, grid_size.y / 2)
@@ -1411,6 +1430,7 @@ func add_sand_to_center(amount: int) -> void:
 func clear_sand() -> void:
     sand_grid.fill(0)
     sand_accumulator = 0.0
+    request_render()
 
 func step_sand() -> void:
     if sand_grid.size() != grid_size.x * grid_size.y:
@@ -1441,6 +1461,8 @@ func step_sand() -> void:
                         continue
             var nidx: int = next.y * grid_size.x + next.x
             sand_grid[nidx] += 1
+    if not updates.is_empty():
+        request_render()
 
 func build_grid_image() -> Image:
     var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_R8)
@@ -1561,7 +1583,7 @@ func export_grid_image(path: String) -> void:
             info_label.text = "Exported: %s" % abs_path
         else:
             info_label.text = "Export failed (%d)" % err
-    render_grid()
+    request_render()
 
 func build_export_image() -> Image:
     var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_RGBA8)
@@ -1635,34 +1657,47 @@ func _process(delta: float) -> void:
         return
 
     var playback_active: bool = not is_paused or step_requested
+    var state_changed: bool = false
     if playback_active:
         if step_requested:
             if wolfram_enabled:
                 step_wolfram()
+                state_changed = true
             if ants_enabled:
                 step_ants()
+                state_changed = true
             if gol_enabled:
                 step_game_of_life()
+                state_changed = true
             if day_night_enabled:
                 step_day_night()
+                state_changed = true
             if seeds_enabled:
                 step_seeds()
+                state_changed = true
             if turmite_enabled:
                 step_turmites()
+                state_changed = true
             if sand_enabled:
                 step_sand()
+                state_changed = true
         else:
             var scaled_delta: float = delta * max(global_rate, 0.0)
-            process_wolfram(scaled_delta)
-            process_ants(scaled_delta)
-            process_game_of_life(scaled_delta)
-            process_day_night(scaled_delta)
-            process_seeds(scaled_delta)
-            process_turmites(scaled_delta)
-            process_sand(scaled_delta)
+            state_changed = process_wolfram(scaled_delta) or state_changed
+            state_changed = process_ants(scaled_delta) or state_changed
+            state_changed = process_game_of_life(scaled_delta) or state_changed
+            state_changed = process_day_night(scaled_delta) or state_changed
+            state_changed = process_seeds(scaled_delta) or state_changed
+            state_changed = process_turmites(scaled_delta) or state_changed
+            state_changed = process_sand(scaled_delta) or state_changed
         step_requested = false
 
-    render_grid()
+    if state_changed:
+        request_render()
+
+    if render_pending:
+        render_grid()
+        render_pending = false
 
 func on_grid_gui_input(event: InputEvent) -> void:
     var handled: bool = false
@@ -1672,7 +1707,7 @@ func on_grid_gui_input(event: InputEvent) -> void:
             var pos: Vector2i = local_to_cell(sand_mouse.position)
             if pos.x >= 0 and pos.y >= 0:
                 add_sand_at(pos, sand_drop_amount)
-                render_grid()
+                request_render()
                 handled = true
 
     if not draw_enabled:
@@ -1732,4 +1767,4 @@ func _unhandled_input(event: InputEvent) -> void:
 func _notification(what: int) -> void:
     if what == NOTIFICATION_RESIZED:
         update_grid_size()
-        render_grid()
+        request_render()
