@@ -1,0 +1,10 @@
+[configuration]
+entry_symbol_name="native_automata_library_init"
+
+[libraries]
+linux.debug="res://bin/libnative_automata.debug.so"
+linux.release="res://bin/libnative_automata.so"
+windows.debug="res://bin/native_automata.debug.dll"
+windows.release="res://bin/native_automata.dll"
+macos.debug="res://bin/libnative_automata.debug.dylib"
+macos.release="res://bin/libnative_automata.dylib"
