@@ -224,6 +224,19 @@ func initialize_native_automata() -> void:
         var instance: Object = ClassDB.instantiate("NativeAutomata")
         if instance is RefCounted:
             native_automata = instance as RefCounted
+            print("[NativeAutomata] Loaded native extension")
+        else:
+            print("[NativeAutomata] Failed to instantiate native extension, using GDScript")
+    else:
+        print("[NativeAutomata] Native extension not found, using GDScript")
+
+func set_info_label_text(text: String) -> void:
+    if info_label == null:
+        return
+    var suffix: String = " (GDScript fallback)"
+    if native_automata != null:
+        suffix = " (native C++ active)"
+    info_label.text = text + suffix
 
 func request_render() -> void:
     render_pending = true
@@ -255,7 +268,7 @@ func build_ui() -> void:
     info_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     sidebar_layout.add_child(info_row)
 
-    info_label.text = "Grid ready"
+    set_info_label_text("Grid ready")
     info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
     info_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     info_label.clip_text = true
@@ -997,7 +1010,7 @@ func update_grid_size() -> void:
             turmites[i] = wrap_position(turmites[i])
     else:
         grid_size = new_size
-    info_label.text = "Grid: %dx%d cells @ %d px" % [grid_size.x, grid_size.y, cell_size]
+    set_info_label_text("Grid: %dx%d cells @ %d px" % [grid_size.x, grid_size.y, cell_size])
     if size_changed:
         request_render()
 
@@ -1663,7 +1676,7 @@ func layout_grid_view(tex_size: Vector2i) -> void:
 
 func export_grid_image(path: String) -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:
-        info_label.text = "Export failed (empty grid)"
+        set_info_label_text("Export failed (empty grid)")
         return
     render_grid_sync()
     var img: Image = build_export_image()
@@ -1675,9 +1688,9 @@ func export_grid_image(path: String) -> void:
         if buffer.size() > 0:
             JavaScriptBridge.download_buffer(buffer, resolve_web_export_filename(path), "image/png")
             export_counter += 1
-            info_label.text = "Exported: %s" % resolve_web_export_filename(path)
+            set_info_label_text("Exported: %s" % resolve_web_export_filename(path))
         else:
-            info_label.text = "Export failed (empty buffer)"
+            set_info_label_text("Export failed (empty buffer)")
     else:
         var abs_path: String = ProjectSettings.globalize_path(path)
         var dir_path: String = abs_path.get_base_dir()
@@ -1686,9 +1699,9 @@ func export_grid_image(path: String) -> void:
         var err: int = img.save_png(abs_path)
         if err == OK:
             export_counter += 1
-            info_label.text = "Exported: %s" % abs_path
+            set_info_label_text("Exported: %s" % abs_path)
         else:
-            info_label.text = "Export failed (%d)" % err
+            set_info_label_text("Export failed (%d)" % err)
     request_render()
 
 func build_export_image() -> Image:

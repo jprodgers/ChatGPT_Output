@@ -9,46 +9,19 @@
 #include <godot_cpp/variant/typed_array.hpp>
 #include <godot_cpp/variant/vector2i.hpp>
 #include <godot_cpp/variant/vector.hpp>
+#include <cstdint>
 
 using namespace godot;
 
 namespace {
 
-inline int sample_cell(const PackedByteArray &grid, const Vector2i &size, int edge_mode, int x, int y) {
-    if (x >= 0 && x < size.x && y >= 0 && y < size.y) {
-        return grid[y * size.x + x];
-    }
-
-    switch (edge_mode) {
-        case 0: { // EDGE_WRAP
-            int wrap_x = (x % size.x + size.x) % size.x;
-            int wrap_y = (y % size.y + size.y) % size.y;
-            return grid[wrap_y * size.x + wrap_x];
-        }
-        case 1: { // EDGE_BOUNCE
-            int bx = x;
-            int by = y;
-            if (bx < 0) {
-                bx = -bx - 1;
-            } else if (bx >= size.x) {
-                bx = size.x - (bx - size.x) - 1;
-            }
-            if (by < 0) {
-                by = -by - 1;
-            } else if (by >= size.y) {
-                by = size.y - (by - size.y) - 1;
-            }
-            bx = CLAMP(bx, 0, size.x - 1);
-            by = CLAMP(by, 0, size.y - 1);
-            return grid[by * size.x + bx];
-        }
-        default: // EDGE_FALLOFF
-            return 0;
-    }
-}
-
 inline int clamp_axis(int value, int max_value) {
     return CLAMP(value, 0, max_value - 1);
+}
+
+inline int wrap_axis(int value, int max_value) {
+    int m = value % max_value;
+    return m < 0 ? m + max_value : m;
 }
 
 } // namespace
@@ -74,6 +47,9 @@ public:
         PackedByteArray next_state;
         next_state.resize(grid.size());
 
+        const uint8_t *src = grid.ptr();
+        uint8_t *dst = next_state.ptrw();
+
         bool birth_set[9] = {};
         bool survive_set[9] = {};
         for (int i = 0; i < birth.size(); i++) {
@@ -90,33 +66,110 @@ public:
         }
 
         bool changed = false;
-        for (int y = 0; y < size.y; y++) {
-            for (int x = 0; x < size.x; x++) {
-                int alive = sample_cell(grid, size, edge_mode, x, y);
-                int neighbors = 0;
-                for (int dy = -1; dy <= 1; dy++) {
-                    for (int dx = -1; dx <= 1; dx++) {
-                        if (dx == 0 && dy == 0) {
-                            continue;
+        switch (edge_mode) {
+            case 0: { // EDGE_WRAP
+                for (int y = 0; y < size.y; y++) {
+                    const int y_up = wrap_axis(y - 1, size.y);
+                    const int y_down = wrap_axis(y + 1, size.y);
+                    const int row = y * size.x;
+                    const int row_up = y_up * size.x;
+                    const int row_down = y_down * size.x;
+                    for (int x = 0; x < size.x; x++) {
+                        const int x_left = wrap_axis(x - 1, size.x);
+                        const int x_right = wrap_axis(x + 1, size.x);
+
+                        int neighbors = src[row_up + x_left] + src[row_up + x] + src[row_up + x_right] +
+                                        src[row + x_left] + src[row + x_right] +
+                                        src[row_down + x_left] + src[row_down + x] + src[row_down + x_right];
+
+                        int new_val = 0;
+                        if (src[row + x] == 1) {
+                            if (survive_set[neighbors]) {
+                                new_val = 1;
+                            }
+                        } else if (birth_set[neighbors]) {
+                            new_val = 1;
                         }
-                        neighbors += sample_cell(grid, size, edge_mode, x + dx, y + dy);
+
+                        dst[row + x] = static_cast<uint8_t>(new_val);
+                        if (!changed && new_val != src[row + x]) {
+                            changed = true;
+                        }
                     }
                 }
+                break;
+            }
+            case 1: { // EDGE_BOUNCE
+                for (int y = 0; y < size.y; y++) {
+                    const int y_up = clamp_axis(y - 1, size.y);
+                    const int y_down = clamp_axis(y + 1, size.y);
+                    const int row = y * size.x;
+                    const int row_up = y_up * size.x;
+                    const int row_down = y_down * size.x;
+                    for (int x = 0; x < size.x; x++) {
+                        const int x_left = clamp_axis(x - 1, size.x);
+                        const int x_right = clamp_axis(x + 1, size.x);
 
-                int new_val = 0;
-                if (alive == 1) {
-                    if (survive_set[neighbors]) {
-                        new_val = 1;
+                        int neighbors = src[row_up + x_left] + src[row_up + x] + src[row_up + x_right] +
+                                        src[row + x_left] + src[row + x_right] +
+                                        src[row_down + x_left] + src[row_down + x] + src[row_down + x_right];
+
+                        int new_val = 0;
+                        if (src[row + x] == 1) {
+                            if (survive_set[neighbors]) {
+                                new_val = 1;
+                            }
+                        } else if (birth_set[neighbors]) {
+                            new_val = 1;
+                        }
+
+                        dst[row + x] = static_cast<uint8_t>(new_val);
+                        if (!changed && new_val != src[row + x]) {
+                            changed = true;
+                        }
                     }
-                } else if (birth_set[neighbors]) {
-                    new_val = 1;
                 }
+                break;
+            }
+            default: { // EDGE_FALLOFF or unknown
+                for (int y = 0; y < size.y; y++) {
+                    const int row = y * size.x;
+                    for (int x = 0; x < size.x; x++) {
+                        int neighbors = 0;
+                        for (int dy = -1; dy <= 1; dy++) {
+                            const int ny = y + dy;
+                            if (ny < 0 || ny >= size.y) {
+                                continue;
+                            }
+                            const int nrow = ny * size.x;
+                            for (int dx = -1; dx <= 1; dx++) {
+                                const int nx = x + dx;
+                                if (dx == 0 && dy == 0) {
+                                    continue;
+                                }
+                                if (nx < 0 || nx >= size.x) {
+                                    continue;
+                                }
+                                neighbors += src[nrow + nx];
+                            }
+                        }
 
-                int idx = y * size.x + x;
-                next_state[idx] = static_cast<uint8_t>(new_val);
-                if (!changed && new_val != grid[idx]) {
-                    changed = true;
+                        int new_val = 0;
+                        if (src[row + x] == 1) {
+                            if (survive_set[neighbors]) {
+                                new_val = 1;
+                            }
+                        } else if (birth_set[neighbors]) {
+                            new_val = 1;
+                        }
+
+                        dst[row + x] = static_cast<uint8_t>(new_val);
+                        if (!changed && new_val != src[row + x]) {
+                            changed = true;
+                        }
+                    }
                 }
+                break;
             }
         }
 
@@ -134,13 +187,15 @@ public:
         }
 
         PackedInt32Array next = grid;
+        const int32_t *src = grid.ptr();
+        int32_t *dst = next.ptrw();
         Vector<int> updates;
         updates.reserve(size.x * size.y);
 
         for (int y = 0; y < size.y; y++) {
             for (int x = 0; x < size.x; x++) {
                 int idx = y * size.x + x;
-                if (grid[idx] >= 4) {
+                if (src[idx] >= 4) {
                     updates.push_back(idx);
                 }
             }
@@ -153,10 +208,10 @@ public:
         }
 
         for (int i = 0; i < updates.size(); i++) {
-            int idx = updates[i];
-            int y = idx / size.x;
-            int x = idx - (y * size.x);
-            next[idx] -= 4;
+            const int idx = updates[i];
+            const int y = idx / size.x;
+            const int x = idx - (y * size.x);
+            dst[idx] -= 4;
 
             for (const Vector2i &dir : {Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)}) {
                 int nx = x + dir.x;
@@ -179,8 +234,8 @@ public:
                         break;
                 }
 
-                int nidx = ny * size.x + nx;
-                next[nidx] += 1;
+                const int nidx = ny * size.x + nx;
+                dst[nidx] += 1;
             }
         }
 
