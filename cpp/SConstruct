@@ -1,7 +1,9 @@
 import os
 import sys
 
-env = Environment()
+use_mingw = ARGUMENTS.get("use_mingw", "no") == "yes"
+
+env = Environment(tools=["mingw"] if use_mingw else None)
 
 godot_cpp_path = ARGUMENTS.get("godot_cpp_path", os.environ.get("GODOT_CPP_PATH", "godot-cpp"))
 platform = ARGUMENTS.get("platform", env["PLATFORM"] if "PLATFORM" in env else sys.platform)
@@ -16,7 +18,11 @@ env.Append(CPPPATH=[
     os.path.join(godot_cpp_path, "include"),
     os.path.join(godot_cpp_path, "include", "gen"),
 ])
-env.Append(CPPFLAGS=["-std=c++17", "-fPIC"])
+common_cppflags = ["-std=c++17"]
+if not platform.startswith("win"):
+    common_cppflags.append("-fPIC")
+
+env.Append(CPPFLAGS=common_cppflags)
 env.Append(LIBPATH=[os.path.join(godot_cpp_path, "bin")])
 env.Append(LIBS=[f"godot-cpp.{platform}.{target}.{bits}"])
 
