@@ -220,6 +220,24 @@ func _ready() -> void:
 func initialize_native_automata() -> void:
     if native_automata != null:
         return
+    var extension_path := "res://cpp/native_automata.gdextension"
+    if not FileAccess.file_exists(extension_path):
+        print("[NativeAutomata] Descriptor missing at %s, using GDScript" % extension_path)
+        return
+
+    var platform_lib := ""
+    match OS.get_name():
+        "Windows":
+            platform_lib = "res://bin/native_automata.dll"
+        "macOS":
+            platform_lib = "res://bin/libnative_automata.dylib"
+        _:
+            platform_lib = "res://bin/libnative_automata.so"
+
+    if not FileAccess.file_exists(platform_lib):
+        print("[NativeAutomata] Native library missing at %s, using GDScript (see cpp/README.md to build)" % platform_lib)
+        return
+
     if ClassDB.class_exists("NativeAutomata"):
         var instance: Object = ClassDB.instantiate("NativeAutomata")
         if instance is RefCounted:

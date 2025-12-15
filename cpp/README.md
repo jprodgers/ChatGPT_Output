@@ -18,8 +18,7 @@ urred.
    ```
    The script links against `godot-cpp.<platform>.<target>.<bits>` in `godot-cpp/bin`, so make sure you have built that librar
 y first (see the official `godot-cpp` docs).
-3. Copy the resulting binary into `bin/` (the `SConstruct` already outputs there) and ensure the filename matches `cpp/native_a
-utomata.gdextension`.
+3. Copy the resulting binary into `bin/` (the `SConstruct` already outputs there) and ensure the filename matches `cpp/native_automata.gdextension`. If Godot prints `[NativeAutomata] Native extension not found` when the project starts, double-check that the compiled library exists under `bin/` with the exact filename expected for your platform.
 
 If no native binary is present or loaded, the project automatically falls back to the existing GDScript implementations.
 
