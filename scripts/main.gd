@@ -109,7 +109,7 @@ var ui_ready: bool = false
 var is_paused: bool = true
 
 var render_pending: bool = false
-var render_task_id: int = -1
+var render_task_ids: Array[int] = []
 var render_task_result: Dictionary = {}
 var render_task_mutex: Mutex = Mutex.new()
 
@@ -1516,7 +1516,7 @@ func capture_render_state() -> Dictionary:
         "turmite_colors": turmite_colors.duplicate(true),
     }
 
-func build_render_images(params: Dictionary) -> Dictionary:
+func build_render_component(params: Dictionary, component: String) -> Dictionary:
     var size: Vector2i = params.get("grid_size", Vector2i.ZERO)
     var grid_data: PackedByteArray = params.get("grid", PackedByteArray())
     var sand_data: PackedInt32Array = params.get("sand_grid", PackedInt32Array())
@@ -1526,20 +1526,23 @@ func build_render_images(params: Dictionary) -> Dictionary:
     var turmite_pos: Array = params.get("turmites", [])
     var turmite_cols: Array = params.get("turmite_colors", [])
 
-    var result: Dictionary = {
-        "grid": build_grid_image_from_data(size, grid_data),
-        "sand": build_sand_image_from_data(size, sand_data, palette),
-        "overlay": build_overlay_image_from_data(size, ant_pos, ant_cols, turmite_pos, turmite_cols),
-    }
+    var result: Dictionary = {}
+    if component == "grid":
+        result[component] = build_grid_image_from_data(size, grid_data)
+    elif component == "sand":
+        result[component] = build_sand_image_from_data(size, sand_data, palette)
+    elif component == "overlay":
+        result[component] = build_overlay_image_from_data(size, ant_pos, ant_cols, turmite_pos, turmite_cols)
 
     render_task_mutex.lock()
-    render_task_result = result
+    for key in result.keys():
+        render_task_result[key] = result[key]
     render_task_mutex.unlock()
 
     return result
 
 func start_render_task() -> void:
-    if render_task_id != -1:
+    if render_task_ids.size() > 0:
         return
     if grid_size.x <= 0 or grid_size.y <= 0:
         render_pending = false
@@ -1548,7 +1551,11 @@ func start_render_task() -> void:
     render_task_mutex.lock()
     render_task_result.clear()
     render_task_mutex.unlock()
-    render_task_id = WorkerThreadPool.add_task(Callable(self, "build_render_images").bind(params), false, "render_grid")
+
+    var components: Array[String] = ["grid", "sand", "overlay"]
+    for component in components:
+        var task_id: int = WorkerThreadPool.add_task(Callable(self, "build_render_component").bind(params, component), false, "render_" + component)
+        render_task_ids.append(task_id)
     render_pending = false
 
 func apply_render_result(result: Dictionary) -> void:
@@ -1588,7 +1595,11 @@ func take_render_result() -> Dictionary:
     return result
 
 func render_grid_sync() -> void:
-    var result: Dictionary = build_render_images(capture_render_state())
+    var result: Dictionary = {}
+    var params: Dictionary = capture_render_state()
+    var components: Array[String] = ["grid", "sand", "overlay"]
+    for component in components:
+        result.merge(build_render_component(params, component))
     apply_render_result(result)
 
 func update_image_texture(tex: ImageTexture, img: Image) -> ImageTexture:
@@ -1758,11 +1769,15 @@ func _process(delta: float) -> void:
     if state_changed:
         request_render()
 
-    if render_task_id != -1 and WorkerThreadPool.is_task_completed(render_task_id):
+    var completed_count: int = 0
+    for task_id in render_task_ids:
+        if WorkerThreadPool.is_task_completed(task_id):
+            completed_count += 1
+    if render_task_ids.size() > 0 and completed_count == render_task_ids.size():
         var result: Dictionary = take_render_result()
-        render_task_id = -1
+        render_task_ids.clear()
         apply_render_result(result)
-    if render_pending and render_task_id == -1:
+    if render_pending and render_task_ids.is_empty():
         start_render_task()
 
 func on_grid_gui_input(event: InputEvent) -> void:
