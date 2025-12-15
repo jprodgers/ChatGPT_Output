@@ -50,3 +50,8 @@ The control panel lives on the left to maximize horizontal space for the grid, s
 3. Turn on Game of Life whenever you want an independent sweep across the grid.
 
 You can experiment with extreme update rates (e.g., 0.001 or 100.0 steps/sec) to mix slow sweeps with rapid updates.
+
+## Performance notes
+- The renderer and automata steppers already offload work to Godot's worker threads where possible to stay smooth on the main thread.
+- For deeper native optimizations or larger grids, see [`docs/performance.md`](docs/performance.md) for guidance on when to port hot loops to C++ (GDExtension/custom module) and what that means for desktop vs. web targets.
+- A GDExtension stub for Game of Life and the falling sand pile lives in [`cpp/`](cpp/README.md); when built and present in `bin/`, the project will automatically use the C++ steppers with a GDScript fallback if the library is missing.
