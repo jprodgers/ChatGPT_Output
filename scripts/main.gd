@@ -110,6 +110,8 @@ var is_paused: bool = true
 
 var render_pending: bool = false
 var render_task_id: int = -1
+var render_task_result: Dictionary = {}
+var render_task_mutex: Mutex = Mutex.new()
 
 var step_requested: bool = false
 
@@ -1524,11 +1526,17 @@ func build_render_images(params: Dictionary) -> Dictionary:
     var turmite_pos: Array = params.get("turmites", [])
     var turmite_cols: Array = params.get("turmite_colors", [])
 
-    return {
+    var result: Dictionary = {
         "grid": build_grid_image_from_data(size, grid_data),
         "sand": build_sand_image_from_data(size, sand_data, palette),
         "overlay": build_overlay_image_from_data(size, ant_pos, ant_cols, turmite_pos, turmite_cols),
     }
+
+    render_task_mutex.lock()
+    render_task_result = result
+    render_task_mutex.unlock()
+
+    return result
 
 func start_render_task() -> void:
     if render_task_id != -1:
@@ -1537,6 +1545,9 @@ func start_render_task() -> void:
         render_pending = false
         return
     var params: Dictionary = capture_render_state()
+    render_task_mutex.lock()
+    render_task_result.clear()
+    render_task_mutex.unlock()
     render_task_id = WorkerThreadPool.add_task(Callable(self, "build_render_images").bind(params), false, "render_grid")
     render_pending = false
 
@@ -1568,6 +1579,13 @@ func apply_render_result(result: Dictionary) -> void:
         grid_material.set_shader_parameter("cell_size", float(cell_size))
         grid_view.queue_redraw()
     layout_grid_view(Vector2i(grid_size.x, grid_size.y))
+
+func take_render_result() -> Dictionary:
+    render_task_mutex.lock()
+    var result: Dictionary = render_task_result.duplicate(true)
+    render_task_result.clear()
+    render_task_mutex.unlock()
+    return result
 
 func render_grid_sync() -> void:
     var result: Dictionary = build_render_images(capture_render_state())
@@ -1741,7 +1759,7 @@ func _process(delta: float) -> void:
         request_render()
 
     if render_task_id != -1 and WorkerThreadPool.is_task_completed(render_task_id):
-        var result: Dictionary = WorkerThreadPool.get_task_result(render_task_id)
+        var result: Dictionary = take_render_result()
         render_task_id = -1
         apply_render_result(result)
     if render_pending and render_task_id == -1:
