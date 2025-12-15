@@ -109,6 +109,7 @@ var ui_ready: bool = false
 var is_paused: bool = true
 
 var render_pending: bool = false
+var render_task_id: int = -1
 
 var step_requested: bool = false
 
@@ -1464,55 +1465,95 @@ func step_sand() -> void:
     if not updates.is_empty():
         request_render()
 
-func build_grid_image() -> Image:
-    var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_R8)
-    if grid.size() == grid_size.x * grid_size.y:
-        var data: PackedByteArray = PackedByteArray()
-        data.resize(grid.size())
-        for i in range(grid.size()):
-            data[i] = 255 if grid[i] != 0 else 0
-        img.set_data(grid_size.x, grid_size.y, false, Image.FORMAT_R8, data)
+func build_grid_image_from_data(size: Vector2i, data: PackedByteArray) -> Image:
+    var img: Image = Image.create(size.x, size.y, false, Image.FORMAT_R8)
+    if data.size() == size.x * size.y:
+        var bytes: PackedByteArray = PackedByteArray()
+        bytes.resize(data.size())
+        for i in range(data.size()):
+            bytes[i] = 255 if data[i] != 0 else 0
+        img.set_data(size.x, size.y, false, Image.FORMAT_R8, bytes)
     return img
 
-func build_sand_image() -> Image:
-    var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_R8)
-    var data: PackedByteArray = PackedByteArray()
-    data.resize(grid_size.x * grid_size.y)
-    var palette_size: int = max(1, sand_colors.size())
-    for y in range(grid_size.y):
-        for x in range(grid_size.x):
-            var idx: int = y * grid_size.x + x
-            if idx >= sand_grid.size():
+func build_sand_image_from_data(size: Vector2i, data: PackedInt32Array, palette: Array[Color]) -> Image:
+    var img: Image = Image.create(size.x, size.y, false, Image.FORMAT_R8)
+    var bytes: PackedByteArray = PackedByteArray()
+    bytes.resize(size.x * size.y)
+    var palette_size: int = max(1, palette.size())
+    for y in range(size.y):
+        for x in range(size.x):
+            var idx: int = y * size.x + x
+            if idx >= data.size():
                 continue
-            var level: int = sand_grid[idx] % palette_size
-            data[idx] = level
-    img.set_data(grid_size.x, grid_size.y, false, Image.FORMAT_R8, data)
+            var level: int = data[idx] % palette_size
+            bytes[idx] = level
+    img.set_data(size.x, size.y, false, Image.FORMAT_R8, bytes)
     return img
 
-func build_overlay_image() -> Image:
-    var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_RGBA8)
-    for i in range(ants.size()):
-        var pos: Vector2i = ants[i]
-        if pos.x >= 0 and pos.x < grid_size.x and pos.y >= 0 and pos.y < grid_size.y:
-            img.set_pixel(pos.x, pos.y, ant_colors[i])
-    for i in range(turmites.size()):
-        var pos: Vector2i = turmites[i]
-        if pos.x >= 0 and pos.x < grid_size.x and pos.y >= 0 and pos.y < grid_size.y:
-            img.set_pixel(pos.x, pos.y, turmite_colors[i])
+func build_overlay_image_from_data(size: Vector2i, ant_pos: Array[Vector2i], ant_cols: Array[Color], turmite_pos: Array[Vector2i], turmite_cols: Array[Color]) -> Image:
+    var img: Image = Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
+    for i in range(ant_pos.size()):
+        var pos: Vector2i = ant_pos[i]
+        if pos.x >= 0 and pos.x < size.x and pos.y >= 0 and pos.y < size.y:
+            img.set_pixel(pos.x, pos.y, ant_cols[i])
+    for i in range(turmite_pos.size()):
+        var pos: Vector2i = turmite_pos[i]
+        if pos.x >= 0 and pos.x < size.x and pos.y >= 0 and pos.y < size.y:
+            img.set_pixel(pos.x, pos.y, turmite_cols[i])
     return img
 
-func render_grid() -> void:
-    if grid_size.x <= 0 or grid_size.y <= 0:
+func capture_render_state() -> Dictionary:
+    return {
+        "grid_size": grid_size,
+        "grid": grid,
+        "sand_grid": sand_grid,
+        "sand_colors": sand_colors.duplicate(true),
+        "ants": ants.duplicate(true),
+        "ant_colors": ant_colors.duplicate(true),
+        "turmites": turmites.duplicate(true),
+        "turmite_colors": turmite_colors.duplicate(true),
+    }
+
+func build_render_images(params: Dictionary) -> Dictionary:
+    var size: Vector2i = params.get("grid_size", Vector2i.ZERO)
+    var grid_data: PackedByteArray = params.get("grid", PackedByteArray())
+    var sand_data: PackedInt32Array = params.get("sand_grid", PackedInt32Array())
+    var palette: Array = params.get("sand_colors", [])
+    var ant_pos: Array = params.get("ants", [])
+    var ant_cols: Array = params.get("ant_colors", [])
+    var turmite_pos: Array = params.get("turmites", [])
+    var turmite_cols: Array = params.get("turmite_colors", [])
+
+    return {
+        "grid": build_grid_image_from_data(size, grid_data),
+        "sand": build_sand_image_from_data(size, sand_data, palette),
+        "overlay": build_overlay_image_from_data(size, ant_pos, ant_cols, turmite_pos, turmite_cols),
+    }
+
+func start_render_task() -> void:
+    if render_task_id != -1:
         return
-    var img: Image = build_grid_image()
-    var sand_img: Image = build_sand_image()
-    var overlay_img: Image = build_overlay_image()
+    if grid_size.x <= 0 or grid_size.y <= 0:
+        render_pending = false
+        return
+    var params: Dictionary = capture_render_state()
+    render_task_id = WorkerThreadPool.add_task(Callable(self, "build_render_images").bind(params), false, "render_grid")
+    render_pending = false
 
-    state_texture = update_image_texture(state_texture, img)
-    sand_texture = update_image_texture(sand_texture, sand_img)
-    overlay_texture = update_image_texture(overlay_texture, overlay_img)
+func apply_render_result(result: Dictionary) -> void:
+    var img: Image = result.get("grid", null)
+    var sand_img: Image = result.get("sand", null)
+    var overlay_img: Image = result.get("overlay", null)
 
-    grid_view.texture = state_texture
+    if img != null:
+        state_texture = update_image_texture(state_texture, img)
+    if sand_img != null:
+        sand_texture = update_image_texture(sand_texture, sand_img)
+    if overlay_img != null:
+        overlay_texture = update_image_texture(overlay_texture, overlay_img)
+
+    if state_texture != null:
+        grid_view.texture = state_texture
     if grid_material.shader != null:
         grid_material.set_shader_parameter("state_tex", state_texture)
         grid_material.set_shader_parameter("sand_tex", sand_texture)
@@ -1527,6 +1568,10 @@ func render_grid() -> void:
         grid_material.set_shader_parameter("cell_size", float(cell_size))
         grid_view.queue_redraw()
     layout_grid_view(Vector2i(grid_size.x, grid_size.y))
+
+func render_grid_sync() -> void:
+    var result: Dictionary = build_render_images(capture_render_state())
+    apply_render_result(result)
 
 func update_image_texture(tex: ImageTexture, img: Image) -> ImageTexture:
     if tex == null:
@@ -1559,7 +1604,7 @@ func export_grid_image(path: String) -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:
         info_label.text = "Export failed (empty grid)"
         return
-    render_grid()
+    render_grid_sync()
     var img: Image = build_export_image()
     img.resize(grid_size.x * cell_size, grid_size.y * cell_size, Image.INTERPOLATE_NEAREST)
     if grid_lines_enabled and grid_line_thickness > 0:
@@ -1695,9 +1740,12 @@ func _process(delta: float) -> void:
     if state_changed:
         request_render()
 
-    if render_pending:
-        render_grid()
-        render_pending = false
+    if render_task_id != -1 and WorkerThreadPool.is_task_completed(render_task_id):
+        var result: Dictionary = WorkerThreadPool.get_task_result(render_task_id)
+        render_task_id = -1
+        apply_render_result(result)
+    if render_pending and render_task_id == -1:
+        start_render_task()
 
 func on_grid_gui_input(event: InputEvent) -> void:
     var handled: bool = false
