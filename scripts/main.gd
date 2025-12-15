@@ -113,6 +113,8 @@ var render_task_ids: Array[int] = []
 var render_task_result: Dictionary = {}
 var render_task_mutex: Mutex = Mutex.new()
 
+var native_automata: RefCounted = null
+
 var step_requested: bool = false
 
 var export_pattern: String = "user://screenshot####.png"
@@ -210,9 +212,18 @@ func _ready() -> void:
     if grid_shader != null:
         grid_material.shader = grid_shader
         grid_view.material = grid_material
+    initialize_native_automata()
     set_sand_palette_by_name(sand_palette_name)
     build_ui()
     call_deferred("initialize_grid")
+
+func initialize_native_automata() -> void:
+    if native_automata != null:
+        return
+    if ClassDB.class_exists("NativeAutomata"):
+        var instance: Object = ClassDB.instantiate("NativeAutomata")
+        if instance is RefCounted:
+            native_automata = instance as RefCounted
 
 func request_render() -> void:
     render_pending = true
@@ -1299,10 +1310,19 @@ func step_seeds() -> void:
     step_totalistic([2], [])
 
 func step_totalistic(birth: Array[int], survive: Array[int]) -> void:
+    if native_automata != null and native_automata.has_method("step_totalistic"):
+        var native_result: Dictionary = native_automata.call("step_totalistic", grid, grid_size, birth, survive, edge_mode)
+        if native_result.has("grid") and native_result["grid"] is PackedByteArray:
+            grid = native_result["grid"]
+            if native_result.get("changed", true):
+                request_render()
+            return
+
     var next_state: PackedByteArray = PackedByteArray()
     next_state.resize(grid.size())
     var birth_set: Array[int] = birth
     var survive_set: Array[int] = survive
+    var changed: bool = false
     for y in range(grid_size.y):
         for x in range(grid_size.x):
             var alive: int = sample_cell(Vector2i(x, y))
@@ -1319,9 +1339,13 @@ func step_totalistic(birth: Array[int], survive: Array[int]) -> void:
             else:
                 if birth_set.has(neighbors):
                     new_val = 1
-            next_state[y * grid_size.x + x] = new_val
+            var idx: int = y * grid_size.x + x
+            next_state[idx] = new_val
+            if not changed and new_val != grid[idx]:
+                changed = true
     grid = next_state
-    request_render()
+    if changed:
+        request_render()
 
 func spawn_turmites(count: int, color: Color) -> void:
     var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -1439,6 +1463,14 @@ func step_sand() -> void:
     if sand_grid.size() != grid_size.x * grid_size.y:
         sand_grid.resize(grid_size.x * grid_size.y)
         sand_grid.fill(0)
+    if native_automata != null and native_automata.has_method("step_sand"):
+        var native_result: Dictionary = native_automata.call("step_sand", sand_grid, grid_size, edge_mode)
+        if native_result.has("grid") and native_result["grid"] is PackedInt32Array:
+            sand_grid = native_result["grid"]
+            if native_result.get("changed", false):
+                request_render()
+            return
+
     var updates: Array[Vector2i] = []
     for y in range(grid_size.y):
         for x in range(grid_size.x):
