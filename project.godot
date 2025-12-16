@@ -22,6 +22,10 @@ window/size/mode=2
 window/size/width=1400
 window/size/height=900
 
+[gdextension]
+
+files=PackedStringArray("res://cpp/native_automata.gdextension")
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
