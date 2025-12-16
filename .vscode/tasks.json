@@ -1,0 +1,65 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build godot-cpp (bindings)",
+            "type": "shell",
+            "command": "scons",
+            "args": [
+                "platform=windows"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/godot-cpp"
+            },
+            "problemMatcher": "$msCompile",
+            "group": {
+                "kind": "build",
+                "isDefault": false
+            }
+        },
+        {
+            "label": "Build Extension (Debug/Windows)",
+            "type": "shell",
+            "command": "scons",
+            "args": [
+                "platform=windows",
+                "target=template_debug",
+                "debug_symbols=yes"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$msCompile",
+            "group": {
+                "kind": "build",
+                "isDefault": true    // Makes this the default build task
+            }
+        },
+        {
+            "label": "Build Extension (Release/Windows)",
+            "type": "shell",
+            "command": "scons",
+            "args": [
+                "platform=windows",
+                "target=template_release"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "Build Extension (Web)",
+            "type": "shell",
+            "command": "scons",
+            "args": [
+                "platform=web",
+                "target=template_release"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": "$msCompile"
+        }
+    ]
+}
