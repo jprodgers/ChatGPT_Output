@@ -14,8 +14,6 @@
 #include <godot_cpp/variant/vector2i.hpp>
 #include <cstdint>
 
-using namespace godot;
-
 namespace {
 
 inline int clamp_axis(int value, int max_value) {
@@ -28,6 +26,8 @@ inline int wrap_axis(int value, int max_value) {
 }
 
 } // namespace
+
+namespace godot {
 
 class NativeAutomata : public RefCounted {
     GDCLASS(NativeAutomata, RefCounted);
@@ -247,19 +247,21 @@ public:
     }
 };
 
+} // namespace godot
+
 extern "C" {
 
 GDExtensionBool GDE_EXPORT native_automata_library_init(GDExtensionInterfaceGetProcAddress p_get_proc_address, GDExtensionClassLibraryPtr p_library, GDExtensionInitialization *r_initialization) {
-    GDExtensionBinding::InitObject init_obj(p_get_proc_address, p_library, r_initialization);
+    godot::GDExtensionBinding::InitObject init_obj(p_get_proc_address, p_library, r_initialization);
 
-    init_obj.register_initializer([](ModuleInitializationLevel level) {
-        if (level == MODULE_INITIALIZATION_LEVEL_SCENE) {
-            ClassDB::register_class<NativeAutomata>();
+    init_obj.register_initializer([](godot::ModuleInitializationLevel level) {
+        if (level == godot::MODULE_INITIALIZATION_LEVEL_SCENE) {
+            godot::ClassDB::register_class<godot::NativeAutomata>();
         }
     });
 
-    init_obj.register_terminator([](ModuleInitializationLevel) {});
-    init_obj.set_minimum_library_initialization_level(MODULE_INITIALIZATION_LEVEL_SCENE);
+    init_obj.register_terminator([](godot::ModuleInitializationLevel) {});
+    init_obj.set_minimum_library_initialization_level(godot::MODULE_INITIALIZATION_LEVEL_SCENE);
 
     return init_obj.init();
 }
