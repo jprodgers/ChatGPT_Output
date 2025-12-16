@@ -1,0 +1,11 @@
+{
+    "name": "Launch Game (Windows Debug)",
+    "type": "cppvsdbg",            // Use the Visual Studio debugger for C++
+    "request": "launch",
+    "program": "C:/Users/jimmi/OneDrive/Desktop/Godot_v4.5.1-stable_win64/Godot_v4.5.1-stable_win64.exe",
+    "args": ["--path", "C:/Users/jimmi/Documents/GitHub/ChatGPT_Output"],
+    "cwd": "C:/Users/jimmi/Documents/GitHub/ChatGPT_Output",
+    "console": "internalConsole",
+    "stopAtEntry": false,
+    "preLaunchTask": "build-windows-debug"
+}
