@@ -49,35 +49,35 @@ var sand_drop_amount: int = 1000
 var sand_drop_at_click: bool = false
 
 const SAND_PALETTE_PRESETS: Dictionary = {
-    "Desert": [Color(0.93, 0.82, 0.57), Color(0.86, 0.67, 0.45), Color(0.71, 0.52, 0.33), Color(0.49, 0.36, 0.25)],
-    "Pastel": [Color(0.91, 0.91, 0.98), Color(0.74, 0.86, 0.96), Color(0.56, 0.77, 0.93), Color(0.38, 0.69, 0.89)],
-    "Neon": [Color(0.0, 1.0, 0.59), Color(0.39, 0.96, 0.99), Color(0.93, 0.2, 0.93), Color(1.0, 0.53, 0.0)],
-    "Rainbow": [Color(0.55, 0.0, 0.0), Color(1.0, 0.85, 0.1), Color(0.15, 0.45, 1.0), Color(0.6, 0.25, 0.8)],
-    "Sunset": [Color(0.98, 0.54, 0.2), Color(0.97, 0.8, 0.36), Color(0.89, 0.35, 0.36), Color(0.55, 0.16, 0.35)],
-    "Forest": [Color(0.18, 0.35, 0.2), Color(0.31, 0.55, 0.32), Color(0.5, 0.74, 0.45), Color(0.73, 0.89, 0.64)],
-    "Grayscale": [Color(0.2, 0.2, 0.2), Color(0.4, 0.4, 0.4), Color(0.6, 0.6, 0.6), Color(0.85, 0.85, 0.85)]
+	"Desert": [Color(0.93, 0.82, 0.57), Color(0.86, 0.67, 0.45), Color(0.71, 0.52, 0.33), Color(0.49, 0.36, 0.25)],
+	"Pastel": [Color(0.91, 0.91, 0.98), Color(0.74, 0.86, 0.96), Color(0.56, 0.77, 0.93), Color(0.38, 0.69, 0.89)],
+	"Neon": [Color(0.0, 1.0, 0.59), Color(0.39, 0.96, 0.99), Color(0.93, 0.2, 0.93), Color(1.0, 0.53, 0.0)],
+	"Rainbow": [Color(0.55, 0.0, 0.0), Color(1.0, 0.85, 0.1), Color(0.15, 0.45, 1.0), Color(0.6, 0.25, 0.8)],
+	"Sunset": [Color(0.98, 0.54, 0.2), Color(0.97, 0.8, 0.36), Color(0.89, 0.35, 0.36), Color(0.55, 0.16, 0.35)],
+	"Forest": [Color(0.18, 0.35, 0.2), Color(0.31, 0.55, 0.32), Color(0.5, 0.74, 0.45), Color(0.73, 0.89, 0.64)],
+	"Grayscale": [Color(0.2, 0.2, 0.2), Color(0.4, 0.4, 0.4), Color(0.6, 0.6, 0.6), Color(0.85, 0.85, 0.85)]
 }
 const SAND_PALETTE_ORDER: Array[String] = [
-    "Desert",
-    "Pastel",
-    "Neon",
-    "Rainbow",
-    "Sunset",
-    "Forest",
-    "Grayscale",
-    "Custom",
+	"Desert",
+	"Pastel",
+	"Neon",
+	"Rainbow",
+	"Sunset",
+	"Forest",
+	"Grayscale",
+	"Custom",
 ]
 var sand_palette_name: String = "Desert"
 var sand_colors: Array[Color] = []
 
 const TURMITE_RULE_PRESETS: Array[String] = [
-    "RL", # Classic Langton ant
-    "RLR", # Simple oscillations
-    "LR", # Symmetric turn pair
-    "RLLR", # Winding paths
-    "RRLL", # Space-filling drift
-    "RLRR", # Spirals and rays
-    "LRRL", # Dense braids
+	"RL", # Classic Langton ant
+	"RLR", # Simple oscillations
+	"LR", # Symmetric turn pair
+	"RLLR", # Winding paths
+	"RRLL", # Space-filling drift
+	"RLRR", # Spirals and rays
+	"LRRL", # Dense braids
 ]
 
 var turmite_rate: float = 1.0
@@ -161,50 +161,50 @@ var sand_color_pickers: Array[ColorPickerButton] = []
 @onready var export_dialog: FileDialog = FileDialog.new()
 
 func style_picker_button(picker: ColorPickerButton) -> void:
-    picker.custom_minimum_size = Vector2(32, 32)
-    picker.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-    picker.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	picker.custom_minimum_size = Vector2(32, 32)
+	picker.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	picker.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 
-    var base: StyleBoxFlat = StyleBoxFlat.new()
-    base.bg_color = Color.WHITE
-    base.border_color = Color(0.2, 0.2, 0.2)
-    base.border_width_left = 1
-    base.border_width_right = 1
-    base.border_width_top = 1
-    base.border_width_bottom = 1
+	var base: StyleBoxFlat = StyleBoxFlat.new()
+	base.bg_color = Color.WHITE
+	base.border_color = Color(0.2, 0.2, 0.2)
+	base.border_width_left = 1
+	base.border_width_right = 1
+	base.border_width_top = 1
+	base.border_width_bottom = 1
 
-    var hover: StyleBoxFlat = base.duplicate() as StyleBoxFlat
-    hover.bg_color = Color(1, 1, 1, 0.9)
+	var hover: StyleBoxFlat = base.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(1, 1, 1, 0.9)
 
-    var pressed: StyleBoxFlat = base.duplicate() as StyleBoxFlat
-    pressed.bg_color = Color(0.9, 0.9, 0.9)
+	var pressed: StyleBoxFlat = base.duplicate() as StyleBoxFlat
+	pressed.bg_color = Color(0.9, 0.9, 0.9)
 
-    picker.add_theme_stylebox_override("normal", base)
-    picker.add_theme_stylebox_override("hover", hover)
-    picker.add_theme_stylebox_override("pressed", pressed)
-    picker.add_theme_stylebox_override("focus", hover)
-    picker.add_theme_stylebox_override("disabled", base)
+	picker.add_theme_stylebox_override("normal", base)
+	picker.add_theme_stylebox_override("hover", hover)
+	picker.add_theme_stylebox_override("pressed", pressed)
+	picker.add_theme_stylebox_override("focus", hover)
+	picker.add_theme_stylebox_override("disabled", base)
 
 func apply_picker_color(picker: ColorPickerButton, color: Color) -> void:
-    picker.color = color
-    picker.modulate = color
+	picker.color = color
+	picker.modulate = color
 
 func update_grid_line_controls() -> void:
-    grid_line_thickness_spin.editable = grid_lines_enabled
-    grid_line_thickness_spin.mouse_filter = Control.MOUSE_FILTER_STOP
-    grid_line_color_picker.disabled = not grid_lines_enabled
+	grid_line_thickness_spin.editable = grid_lines_enabled
+	grid_line_thickness_spin.mouse_filter = Control.MOUSE_FILTER_STOP
+	grid_line_color_picker.disabled = not grid_lines_enabled
 
 func set_sand_palette_by_name(name: String) -> void:
-    sand_palette_name = name
-    sand_colors.clear()
-    var preset: Array = SAND_PALETTE_PRESETS.get(name, [])
-    for value in preset:
-        if value is Color:
-            sand_colors.append(value)
-    while sand_colors.size() < 4:
-        sand_colors.append(Color.WHITE)
-    for i in range(min(sand_color_pickers.size(), sand_colors.size())):
-        apply_picker_color(sand_color_pickers[i], sand_colors[i])
+	sand_palette_name = name
+	sand_colors.clear()
+	var preset: Array = SAND_PALETTE_PRESETS.get(name, [])
+	for value in preset:
+		if value is Color:
+			sand_colors.append(value)
+	while sand_colors.size() < 4:
+		sand_colors.append(Color.WHITE)
+	for i in range(min(sand_color_pickers.size(), sand_colors.size())):
+		apply_picker_color(sand_color_pickers[i], sand_colors[i])
 
 func _ready() -> void:
     set_process(true)
@@ -373,26 +373,26 @@ func initialize_grid() -> void:
     request_render()
 
 func build_collapsible_section(title: String, content: Control) -> VBoxContainer:
-    var wrapper: VBoxContainer = VBoxContainer.new()
-    wrapper.add_theme_constant_override("separation", 4)
+	var wrapper: VBoxContainer = VBoxContainer.new()
+	wrapper.add_theme_constant_override("separation", 4)
 
-    var header: Button = Button.new()
-    header.text = title
-    header.toggle_mode = true
-    header.button_pressed = false
-    wrapper.add_child(header)
+	var header: Button = Button.new()
+	header.text = title
+	header.toggle_mode = true
+	header.button_pressed = false
+	wrapper.add_child(header)
 
-    var holder: VBoxContainer = VBoxContainer.new()
-    holder.add_theme_constant_override("separation", 6)
-    holder.add_child(content)
-    holder.visible = header.button_pressed
-    wrapper.add_child(holder)
+	var holder: VBoxContainer = VBoxContainer.new()
+	holder.add_theme_constant_override("separation", 6)
+	holder.add_child(content)
+	holder.visible = header.button_pressed
+	wrapper.add_child(holder)
 
-    header.toggled.connect(func(pressed: bool) -> void:
-        holder.visible = pressed
-    )
+	header.toggled.connect(func(pressed: bool) -> void:
+		holder.visible = pressed
+	)
 
-    return wrapper
+	return wrapper
 
 func build_grid_controls() -> VBoxContainer:
     var box: VBoxContainer = VBoxContainer.new()
@@ -544,44 +544,44 @@ func build_grid_controls() -> VBoxContainer:
     return box
 
 func build_export_controls() -> VBoxContainer:
-    var box: VBoxContainer = VBoxContainer.new()
-    box.add_theme_constant_override("separation", 6)
+	var box: VBoxContainer = VBoxContainer.new()
+	box.add_theme_constant_override("separation", 6)
 
-    var pattern_row: HBoxContainer = HBoxContainer.new()
-    var pattern_label: Label = Label.new()
-    pattern_label.text = "Filename"
-    pattern_row.add_child(pattern_label)
-    export_pattern_edit.text = export_pattern
-    export_pattern_edit.placeholder_text = "user://screenshot####.png"
-    export_pattern_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-    export_pattern_edit.text_changed.connect(func(text: String) -> void:
-        export_pattern = text
-    )
-    pattern_row.add_child(export_pattern_edit)
-    box.add_child(pattern_row)
+	var pattern_row: HBoxContainer = HBoxContainer.new()
+	var pattern_label: Label = Label.new()
+	pattern_label.text = "Filename"
+	pattern_row.add_child(pattern_label)
+	export_pattern_edit.text = export_pattern
+	export_pattern_edit.placeholder_text = "user://screenshot####.png"
+	export_pattern_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	export_pattern_edit.text_changed.connect(func(text: String) -> void:
+		export_pattern = text
+	)
+	pattern_row.add_child(export_pattern_edit)
+	box.add_child(pattern_row)
 
-    var export_row: HBoxContainer = HBoxContainer.new()
-    var export_button: Button = Button.new()
-    export_button.text = "Export PNG"
-    export_button.pressed.connect(func() -> void:
-        if Engine.has_singleton("JavaScriptBridge"):
-            export_grid_image(resolve_export_path())
-        else:
-            var suggested: String = resolve_export_path()
-            export_dialog.current_file = suggested.get_file()
-            var dir: String = suggested.get_base_dir()
-            if dir == "" or dir == ".":
-                dir = ProjectSettings.globalize_path("user://")
-            export_dialog.current_path = dir
-            export_dialog.popup_centered()
-    )
-    export_row.add_child(export_button)
-    var hint: Label = Label.new()
-    hint.text = "Use # for numbering"
-    export_row.add_child(hint)
-    box.add_child(export_row)
+	var export_row: HBoxContainer = HBoxContainer.new()
+	var export_button: Button = Button.new()
+	export_button.text = "Export PNG"
+	export_button.pressed.connect(func() -> void:
+		if Engine.has_singleton("JavaScriptBridge"):
+			export_grid_image(resolve_export_path())
+		else:
+			var suggested: String = resolve_export_path()
+			export_dialog.current_file = suggested.get_file()
+			var dir: String = suggested.get_base_dir()
+			if dir == "" or dir == ".":
+				dir = ProjectSettings.globalize_path("user://")
+			export_dialog.current_path = dir
+			export_dialog.popup_centered()
+	)
+	export_row.add_child(export_button)
+	var hint: Label = Label.new()
+	hint.text = "Use # for numbering"
+	export_row.add_child(hint)
+	box.add_child(export_row)
 
-    return box
+	return box
 
 func build_wolfram_controls() -> VBoxContainer:
     var box: VBoxContainer = VBoxContainer.new()
@@ -1074,79 +1074,79 @@ func clear_ants() -> void:
     request_render()
 
 func wrap_position(pos: Vector2i) -> Vector2i:
-    return Vector2i(posmod(pos.x, grid_size.x), posmod(pos.y, grid_size.y))
+	return Vector2i(posmod(pos.x, grid_size.x), posmod(pos.y, grid_size.y))
 
 func sample_cell(pos: Vector2i) -> int:
-    if pos.x >= 0 and pos.x < grid_size.x and pos.y >= 0 and pos.y < grid_size.y:
-        return grid[pos.y * grid_size.x + pos.x]
+	if pos.x >= 0 and pos.x < grid_size.x and pos.y >= 0 and pos.y < grid_size.y:
+		return grid[pos.y * grid_size.x + pos.x]
 
-    match edge_mode:
-        EDGE_WRAP:
-            pos = wrap_position(pos)
-            return grid[pos.y * grid_size.x + pos.x]
-        EDGE_BOUNCE:
-            var bounce_pos: Vector2i = pos
-            if bounce_pos.x < 0:
-                bounce_pos.x = -bounce_pos.x - 1
-            elif bounce_pos.x >= grid_size.x:
-                bounce_pos.x = grid_size.x - (bounce_pos.x - grid_size.x) - 1
-            if bounce_pos.y < 0:
-                bounce_pos.y = -bounce_pos.y - 1
-            elif bounce_pos.y >= grid_size.y:
-                bounce_pos.y = grid_size.y - (bounce_pos.y - grid_size.y) - 1
-            bounce_pos.x = clamp(bounce_pos.x, 0, grid_size.x - 1)
-            bounce_pos.y = clamp(bounce_pos.y, 0, grid_size.y - 1)
-            return grid[bounce_pos.y * grid_size.x + bounce_pos.x]
-        EDGE_FALLOFF:
-            return 0
-    return 0
+	match edge_mode:
+		EDGE_WRAP:
+			pos = wrap_position(pos)
+			return grid[pos.y * grid_size.x + pos.x]
+		EDGE_BOUNCE:
+			var bounce_pos: Vector2i = pos
+			if bounce_pos.x < 0:
+				bounce_pos.x = -bounce_pos.x - 1
+			elif bounce_pos.x >= grid_size.x:
+				bounce_pos.x = grid_size.x - (bounce_pos.x - grid_size.x) - 1
+			if bounce_pos.y < 0:
+				bounce_pos.y = -bounce_pos.y - 1
+			elif bounce_pos.y >= grid_size.y:
+				bounce_pos.y = grid_size.y - (bounce_pos.y - grid_size.y) - 1
+			bounce_pos.x = clamp(bounce_pos.x, 0, grid_size.x - 1)
+			bounce_pos.y = clamp(bounce_pos.y, 0, grid_size.y - 1)
+			return grid[bounce_pos.y * grid_size.x + bounce_pos.x]
+		EDGE_FALLOFF:
+			return 0
+	return 0
 
 func set_cell(pos: Vector2i, value: int) -> void:
-    if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
-        return
-    grid[pos.y * grid_size.x + pos.x] = clamp(value, 0, 1)
+	if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
+		return
+	grid[pos.y * grid_size.x + pos.x] = clamp(value, 0, 1)
 
 func erase_cell_contents(pos: Vector2i) -> bool:
-    if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
-        return false
-    var changed: bool = false
-    var idx: int = pos.y * grid_size.x + pos.x
-    if grid[idx] != 0:
-        grid[idx] = 0
-        changed = true
-    if sand_grid.size() > idx and sand_grid[idx] != 0:
-        sand_grid[idx] = 0
-        changed = true
-    changed = remove_ants_at(pos) or changed
-    changed = remove_turmites_at(pos) or changed
-    return changed
+	if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
+		return false
+	var changed: bool = false
+	var idx: int = pos.y * grid_size.x + pos.x
+	if grid[idx] != 0:
+		grid[idx] = 0
+		changed = true
+	if sand_grid.size() > idx and sand_grid[idx] != 0:
+		sand_grid[idx] = 0
+		changed = true
+	changed = remove_ants_at(pos) or changed
+	changed = remove_turmites_at(pos) or changed
+	return changed
 
 func apply_draw_action(pos: Vector2i) -> bool:
-    if draw_mode == DRAW_MODE_ERASE:
-        return erase_cell_contents(pos)
-    if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
-        return false
-    var idx: int = pos.y * grid_size.x + pos.x
-    var changed: bool = false
-    if grid[idx] != 1:
-        grid[idx] = 1
-        changed = true
-    if sand_grid.size() > idx and sand_grid[idx] != 0:
-        sand_grid[idx] = 0
-        changed = true
-    changed = remove_ants_at(pos) or changed
-    changed = remove_turmites_at(pos) or changed
-    return changed
+	if draw_mode == DRAW_MODE_ERASE:
+		return erase_cell_contents(pos)
+	if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
+		return false
+	var idx: int = pos.y * grid_size.x + pos.x
+	var changed: bool = false
+	if grid[idx] != 1:
+		grid[idx] = 1
+		changed = true
+	if sand_grid.size() > idx and sand_grid[idx] != 0:
+		sand_grid[idx] = 0
+		changed = true
+	changed = remove_ants_at(pos) or changed
+	changed = remove_turmites_at(pos) or changed
+	return changed
 
 func local_to_cell(local_pos: Vector2) -> Vector2i:
-    if grid_size.x <= 0 or grid_size.y <= 0:
-        return Vector2i(-1, -1)
-    var size: Vector2 = grid_view.size
-    if size.x <= 0.0 or size.y <= 0.0:
-        return Vector2i(-1, -1)
-    var gx: int = int(floor(local_pos.x / size.x * float(grid_size.x)))
-    var gy: int = int(floor(local_pos.y / size.y * float(grid_size.y)))
-    return Vector2i(clamp(gx, 0, grid_size.x - 1), clamp(gy, 0, grid_size.y - 1))
+	if grid_size.x <= 0 or grid_size.y <= 0:
+		return Vector2i(-1, -1)
+	var size: Vector2 = grid_view.size
+	if size.x <= 0.0 or size.y <= 0.0:
+		return Vector2i(-1, -1)
+	var gx: int = int(floor(local_pos.x / size.x * float(grid_size.x)))
+	var gy: int = int(floor(local_pos.y / size.y * float(grid_size.y)))
+	return Vector2i(clamp(gx, 0, grid_size.x - 1), clamp(gy, 0, grid_size.y - 1))
 
 func handle_draw_input(global_pos: Vector2) -> bool:
     var rect: Rect2 = grid_view.get_global_rect()
@@ -1173,88 +1173,88 @@ func handle_draw_local(local_pos: Vector2) -> bool:
     return changed
 
 func process_wolfram(delta: float) -> bool:
-    if not wolfram_enabled or wolfram_rate <= 0.0:
-        return false
-    wolfram_accumulator += delta
-    var interval: float = 1.0 / wolfram_rate
-    var stepped: bool = false
-    while wolfram_accumulator >= interval:
-        step_wolfram()
-        wolfram_accumulator -= interval
-        stepped = true
-    return stepped
+	if not wolfram_enabled or wolfram_rate <= 0.0:
+		return false
+	wolfram_accumulator += delta
+	var interval: float = 1.0 / wolfram_rate
+	var stepped: bool = false
+	while wolfram_accumulator >= interval:
+		step_wolfram()
+		wolfram_accumulator -= interval
+		stepped = true
+	return stepped
 
 func process_ants(delta: float) -> bool:
-    if not ants_enabled or ant_rate <= 0.0 or ants.is_empty():
-        return false
-    ant_accumulator += delta
-    var interval: float = 1.0 / ant_rate
-    var stepped: bool = false
-    while ant_accumulator >= interval:
-        step_ants()
-        ant_accumulator -= interval
-        stepped = true
-    return stepped
+	if not ants_enabled or ant_rate <= 0.0 or ants.is_empty():
+		return false
+	ant_accumulator += delta
+	var interval: float = 1.0 / ant_rate
+	var stepped: bool = false
+	while ant_accumulator >= interval:
+		step_ants()
+		ant_accumulator -= interval
+		stepped = true
+	return stepped
 
 func process_game_of_life(delta: float) -> bool:
-    if not gol_enabled or gol_rate <= 0.0:
-        return false
-    gol_accumulator += delta
-    var interval: float = 1.0 / gol_rate
-    var stepped: bool = false
-    while gol_accumulator >= interval:
-        step_game_of_life()
-        gol_accumulator -= interval
-        stepped = true
-    return stepped
+	if not gol_enabled or gol_rate <= 0.0:
+		return false
+	gol_accumulator += delta
+	var interval: float = 1.0 / gol_rate
+	var stepped: bool = false
+	while gol_accumulator >= interval:
+		step_game_of_life()
+		gol_accumulator -= interval
+		stepped = true
+	return stepped
 
 func process_day_night(delta: float) -> bool:
-    if not day_night_enabled or day_night_rate <= 0.0:
-        return false
-    day_night_accumulator += delta
-    var interval: float = 1.0 / day_night_rate
-    var stepped: bool = false
-    while day_night_accumulator >= interval:
-        step_day_night()
-        day_night_accumulator -= interval
-        stepped = true
-    return stepped
+	if not day_night_enabled or day_night_rate <= 0.0:
+		return false
+	day_night_accumulator += delta
+	var interval: float = 1.0 / day_night_rate
+	var stepped: bool = false
+	while day_night_accumulator >= interval:
+		step_day_night()
+		day_night_accumulator -= interval
+		stepped = true
+	return stepped
 
 func process_seeds(delta: float) -> bool:
-    if not seeds_enabled or seeds_rate <= 0.0:
-        return false
-    seeds_accumulator += delta
-    var interval: float = 1.0 / seeds_rate
-    var stepped: bool = false
-    while seeds_accumulator >= interval:
-        step_seeds()
-        seeds_accumulator -= interval
-        stepped = true
-    return stepped
+	if not seeds_enabled or seeds_rate <= 0.0:
+		return false
+	seeds_accumulator += delta
+	var interval: float = 1.0 / seeds_rate
+	var stepped: bool = false
+	while seeds_accumulator >= interval:
+		step_seeds()
+		seeds_accumulator -= interval
+		stepped = true
+	return stepped
 
 func process_turmites(delta: float) -> bool:
-    if not turmite_enabled or turmite_rate <= 0.0 or turmites.is_empty():
-        return false
-    turmite_accumulator += delta
-    var interval: float = 1.0 / turmite_rate
-    var stepped: bool = false
-    while turmite_accumulator >= interval:
-        step_turmites()
-        turmite_accumulator -= interval
-        stepped = true
-    return stepped
+	if not turmite_enabled or turmite_rate <= 0.0 or turmites.is_empty():
+		return false
+	turmite_accumulator += delta
+	var interval: float = 1.0 / turmite_rate
+	var stepped: bool = false
+	while turmite_accumulator >= interval:
+		step_turmites()
+		turmite_accumulator -= interval
+		stepped = true
+	return stepped
 
 func process_sand(delta: float) -> bool:
-    if not sand_enabled or sand_rate <= 0.0:
-        return false
-    sand_accumulator += delta
-    var interval: float = 1.0 / sand_rate
-    var stepped: bool = false
-    while sand_accumulator >= interval:
-        step_sand()
-        sand_accumulator -= interval
-        stepped = true
-    return stepped
+	if not sand_enabled or sand_rate <= 0.0:
+		return false
+	sand_accumulator += delta
+	var interval: float = 1.0 / sand_rate
+	var stepped: bool = false
+	while sand_accumulator >= interval:
+		step_sand()
+		sand_accumulator -= interval
+		stepped = true
+	return stepped
 
 func step_wolfram(allow_wrap: bool = true) -> void:
     if grid_size.y <= 0:
@@ -1332,13 +1332,13 @@ func step_ants() -> void:
         request_render()
 
 func step_game_of_life() -> void:
-    step_totalistic([3], [2, 3])
+	step_totalistic([3], [2, 3])
 
 func step_day_night() -> void:
-    step_totalistic([3, 6, 7, 8], [3, 4, 6, 7, 8])
+	step_totalistic([3, 6, 7, 8], [3, 4, 6, 7, 8])
 
 func step_seeds() -> void:
-    step_totalistic([2], [])
+	step_totalistic([2], [])
 
 func step_totalistic(birth: Array[int], survive: Array[int]) -> void:
     if native_automata != null and native_automata.has_method("step_totalistic"):
@@ -1395,32 +1395,32 @@ func clear_turmites() -> void:
     request_render()
 
 func remove_ants_at(pos: Vector2i) -> bool:
-    var removed: bool = false
-    var i: int = ants.size() - 1
-    while i >= 0:
-        if ants[i] == pos:
-            ants.remove_at(i)
-            ant_directions.remove_at(i)
-            ant_colors.remove_at(i)
-            removed = true
-        i -= 1
-    if removed and ants.is_empty():
-        ant_accumulator = 0.0
-    return removed
+	var removed: bool = false
+	var i: int = ants.size() - 1
+	while i >= 0:
+		if ants[i] == pos:
+			ants.remove_at(i)
+			ant_directions.remove_at(i)
+			ant_colors.remove_at(i)
+			removed = true
+		i -= 1
+	if removed and ants.is_empty():
+		ant_accumulator = 0.0
+	return removed
 
 func remove_turmites_at(pos: Vector2i) -> bool:
-    var removed: bool = false
-    var i: int = turmites.size() - 1
-    while i >= 0:
-        if turmites[i] == pos:
-            turmites.remove_at(i)
-            turmite_directions.remove_at(i)
-            turmite_colors.remove_at(i)
-            removed = true
-        i -= 1
-    if removed and turmites.is_empty():
-        turmite_accumulator = 0.0
-    return removed
+	var removed: bool = false
+	var i: int = turmites.size() - 1
+	while i >= 0:
+		if turmites[i] == pos:
+			turmites.remove_at(i)
+			turmite_directions.remove_at(i)
+			turmite_colors.remove_at(i)
+			removed = true
+		i -= 1
+	if removed and turmites.is_empty():
+		turmite_accumulator = 0.0
+	return removed
 
 func step_turmites() -> void:
     var remove_indices: Array[int] = []
@@ -1482,8 +1482,8 @@ func add_sand_at(pos: Vector2i, amount: int) -> void:
         request_render()
 
 func add_sand_to_center(amount: int) -> void:
-    var center: Vector2i = Vector2i(grid_size.x / 2, grid_size.y / 2)
-    add_sand_at(center, amount)
+	var center: Vector2i = Vector2i(grid_size.x / 2, grid_size.y / 2)
+	add_sand_at(center, amount)
 
 func clear_sand() -> void:
     sand_grid.fill(0)
@@ -1666,31 +1666,31 @@ func render_grid_sync() -> void:
     apply_render_result(result)
 
 func update_image_texture(tex: ImageTexture, img: Image) -> ImageTexture:
-    if tex == null:
-        return ImageTexture.create_from_image(img)
-    if tex.get_width() != img.get_width() or tex.get_height() != img.get_height():
-        tex = ImageTexture.create_from_image(img)
-    else:
-        tex.update(img)
-    return tex
+	if tex == null:
+		return ImageTexture.create_from_image(img)
+	if tex.get_width() != img.get_width() or tex.get_height() != img.get_height():
+		tex = ImageTexture.create_from_image(img)
+	else:
+		tex.update(img)
+	return tex
 
 func layout_grid_view(tex_size: Vector2i) -> void:
-    if view_container == null:
-        return
-    var container_size: Vector2 = view_container.get_rect().size
-    if tex_size.x <= 0 or tex_size.y <= 0:
-        return
+	if view_container == null:
+		return
+	var container_size: Vector2 = view_container.get_rect().size
+	if tex_size.x <= 0 or tex_size.y <= 0:
+		return
 
-    var display_size: Vector2 = Vector2(tex_size) * float(cell_size)
-    grid_view.scale = Vector2.ONE
-    grid_view.size = display_size
-    grid_view.custom_minimum_size = display_size
-    var offset: Vector2 = Vector2.ZERO
-    if display_size.x < container_size.x:
-        offset.x = (container_size.x - display_size.x) * 0.5
-    if display_size.y < container_size.y:
-        offset.y = (container_size.y - display_size.y) * 0.5
-    grid_view.position = offset
+	var display_size: Vector2 = Vector2(tex_size) * float(cell_size)
+	grid_view.scale = Vector2.ONE
+	grid_view.size = display_size
+	grid_view.custom_minimum_size = display_size
+	var offset: Vector2 = Vector2.ZERO
+	if display_size.x < container_size.x:
+		offset.x = (container_size.x - display_size.x) * 0.5
+	if display_size.y < container_size.y:
+		offset.y = (container_size.y - display_size.y) * 0.5
+	grid_view.position = offset
 
 func export_grid_image(path: String) -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:
@@ -1723,71 +1723,71 @@ func export_grid_image(path: String) -> void:
     request_render()
 
 func build_export_image() -> Image:
-    var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_RGBA8)
-    var palette_size: int = max(1, sand_colors.size())
-    var overlay_map: Dictionary = {}
-    for i in range(ants.size()):
-        overlay_map[ants[i]] = ant_colors[i]
-    for i in range(turmites.size()):
-        overlay_map[turmites[i]] = turmite_colors[i]
-    for y in range(grid_size.y):
-        for x in range(grid_size.x):
-            var idx: int = y * grid_size.x + x
-            var color: Color = dead_color if grid[idx] == 0 else alive_color
-            if idx < sand_grid.size() and sand_grid[idx] > 0:
-                color = sand_colors[(sand_grid[idx] % palette_size + palette_size) % palette_size]
-            var pos: Vector2i = Vector2i(x, y)
-            if overlay_map.has(pos):
-                color = overlay_map[pos]
-            img.set_pixel(x, y, color)
-    return img
+	var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_RGBA8)
+	var palette_size: int = max(1, sand_colors.size())
+	var overlay_map: Dictionary = {}
+	for i in range(ants.size()):
+		overlay_map[ants[i]] = ant_colors[i]
+	for i in range(turmites.size()):
+		overlay_map[turmites[i]] = turmite_colors[i]
+	for y in range(grid_size.y):
+		for x in range(grid_size.x):
+			var idx: int = y * grid_size.x + x
+			var color: Color = dead_color if grid[idx] == 0 else alive_color
+			if idx < sand_grid.size() and sand_grid[idx] > 0:
+				color = sand_colors[(sand_grid[idx] % palette_size + palette_size) % palette_size]
+			var pos: Vector2i = Vector2i(x, y)
+			if overlay_map.has(pos):
+				color = overlay_map[pos]
+			img.set_pixel(x, y, color)
+	return img
 
 func draw_grid_lines_on_image(img: Image) -> void:
-    var width: int = img.get_width()
-    var height: int = img.get_height()
-    for gx in range(grid_size.x + 1):
-        var start_x: int = gx * cell_size
-        for t in range(grid_line_thickness):
-            var px: int = start_x + t
-            if px >= width:
-                continue
-            for py in range(height):
-                img.set_pixel(px, py, grid_line_color)
-    for gy in range(grid_size.y + 1):
-        var start_y: int = gy * cell_size
-        for t in range(grid_line_thickness):
-            var py: int = start_y + t
-            if py >= height:
-                continue
-            for px in range(width):
-                img.set_pixel(px, py, grid_line_color)
+	var width: int = img.get_width()
+	var height: int = img.get_height()
+	for gx in range(grid_size.x + 1):
+		var start_x: int = gx * cell_size
+		for t in range(grid_line_thickness):
+			var px: int = start_x + t
+			if px >= width:
+				continue
+			for py in range(height):
+				img.set_pixel(px, py, grid_line_color)
+	for gy in range(grid_size.y + 1):
+		var start_y: int = gy * cell_size
+		for t in range(grid_line_thickness):
+			var py: int = start_y + t
+			if py >= height:
+				continue
+			for px in range(width):
+				img.set_pixel(px, py, grid_line_color)
 
 func resolve_export_path() -> String:
-    var pattern: String = export_pattern
-    if not pattern.contains("://"):
-        pattern = "user://" + pattern
-    var pad_start: int = -1
-    var pad_len: int = 0
-    for i in pattern.length():
-        if pattern[i] == '#':
-            if pad_start == -1:
-                pad_start = i
-            pad_len += 1
-        elif pad_start != -1:
-            break
-    if pad_len > 0:
-        var number_str: String = str(export_counter).pad_zeros(pad_len)
-        pattern = pattern.substr(0, pad_start) + number_str + pattern.substr(pad_start + pad_len)
-    var path: String = pattern
-    if not path.begins_with("user://") and not path.begins_with("res://") and not path.begins_with("/"):
-        path = "user://" + path
-    return path
+	var pattern: String = export_pattern
+	if not pattern.contains("://"):
+		pattern = "user://" + pattern
+	var pad_start: int = -1
+	var pad_len: int = 0
+	for i in pattern.length():
+		if pattern[i] == '#':
+			if pad_start == -1:
+				pad_start = i
+			pad_len += 1
+		elif pad_start != -1:
+			break
+	if pad_len > 0:
+		var number_str: String = str(export_counter).pad_zeros(pad_len)
+		pattern = pattern.substr(0, pad_start) + number_str + pattern.substr(pad_start + pad_len)
+	var path: String = pattern
+	if not path.begins_with("user://") and not path.begins_with("res://") and not path.begins_with("/"):
+		path = "user://" + path
+	return path
 
 func resolve_web_export_filename(path: String) -> String:
-    var filename: String = path.get_file()
-    if filename == "":
-        filename = "export.png"
-    return filename
+	var filename: String = path.get_file()
+	if filename == "":
+		filename = "export.png"
+	return filename
 
 func _process(delta: float) -> void:
     if not ui_ready:
@@ -1886,27 +1886,27 @@ func on_grid_gui_input(event: InputEvent) -> void:
         accept_event()
 
 func _unhandled_input(event: InputEvent) -> void:
-    if not draw_enabled:
-        return
-    if event is InputEventMouseButton:
-        var mouse_event: InputEventMouseButton = event as InputEventMouseButton
-        if mouse_event.button_index == MOUSE_BUTTON_LEFT:
-            drawing_active = mouse_event.pressed
-            if mouse_event.pressed:
-                handle_draw_input(mouse_event.position)
-    elif event is InputEventScreenTouch:
-        var touch_event: InputEventScreenTouch = event as InputEventScreenTouch
-        drawing_active = touch_event.pressed
-        if touch_event.pressed:
-            handle_draw_input(touch_event.position)
-    elif event is InputEventMouseMotion:
-        var motion: InputEventMouseMotion = event as InputEventMouseMotion
-        if drawing_active and (motion.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
-            handle_draw_input(motion.position)
-    elif event is InputEventScreenDrag:
-        var drag: InputEventScreenDrag = event as InputEventScreenDrag
-        if drawing_active:
-            handle_draw_input(drag.position)
+	if not draw_enabled:
+		return
+	if event is InputEventMouseButton:
+		var mouse_event: InputEventMouseButton = event as InputEventMouseButton
+		if mouse_event.button_index == MOUSE_BUTTON_LEFT:
+			drawing_active = mouse_event.pressed
+			if mouse_event.pressed:
+				handle_draw_input(mouse_event.position)
+	elif event is InputEventScreenTouch:
+		var touch_event: InputEventScreenTouch = event as InputEventScreenTouch
+		drawing_active = touch_event.pressed
+		if touch_event.pressed:
+			handle_draw_input(touch_event.position)
+	elif event is InputEventMouseMotion:
+		var motion: InputEventMouseMotion = event as InputEventMouseMotion
+		if drawing_active and (motion.button_mask & MOUSE_BUTTON_MASK_LEFT) != 0:
+			handle_draw_input(motion.position)
+	elif event is InputEventScreenDrag:
+		var drag: InputEventScreenDrag = event as InputEventScreenDrag
+		if drawing_active:
+			handle_draw_input(drag.position)
 
 func _notification(what: int) -> void:
     if what == NOTIFICATION_RESIZED:
