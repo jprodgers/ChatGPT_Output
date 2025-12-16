@@ -16,8 +16,6 @@
 #include <algorithm>
 #include <cstdint>
 
-using namespace godot;
-
 namespace {
 
 inline int clamp_axis(int value, int max_value) {
@@ -32,6 +30,8 @@ inline int wrap_axis(int value, int max_value) {
 } // namespace
 
 using namespace godot;
+
+namespace godot {
 
 class NativeAutomata : public RefCounted {
     GDCLASS(NativeAutomata, RefCounted);
@@ -250,6 +250,8 @@ public:
         return result;
     }
 };
+
+} // namespace godot
 
 extern "C" {
 
