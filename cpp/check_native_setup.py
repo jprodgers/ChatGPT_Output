@@ -36,16 +36,30 @@ def detect_godot_cpp_path() -> Path | None:
 
 
 def expected_headers_exist(godot_cpp: Path) -> bool:
-    required = [
-        godot_cpp / "include" / "godot_cpp" / "classes" / "ref_counted.hpp",
+    # Require one core header that ships with the repo to ensure the checkout exists.
+    core_header = godot_cpp / "include" / "godot_cpp" / "core" / "method_ptrcall.hpp"
+
+    # generated headers may live under include/gen/... or gen/include/...
+    generated_candidates = [
         godot_cpp / "include" / "gen" / "godot_cpp" / "classes" / "global_constants.hpp",
+        godot_cpp / "gen" / "include" / "godot_cpp" / "classes" / "global_constants.hpp",
     ]
-    missing = [path for path in required if not path.is_file()]
+
+    missing: list[Path] = []
+    if not core_header.is_file():
+        missing.append(core_header)
+
+    if not any(candidate.is_file() for candidate in generated_candidates):
+        missing.extend(generated_candidates)
+
     if missing:
         print("Missing godot-cpp headers:")
         for path in missing:
             print(f"  - {path}")
-        print("Make sure you cloned godot-cpp (matching your Godot 4.x version) and ran the bindings build with generate_bindings=yes.")
+        print(
+            "Make sure you cloned godot-cpp (matching your Godot 4.x version) and ran the bindings build with generate_bindings=yes.\n"
+            "Newer layouts place generated headers under gen/include/...; older ones under include/gen/...."
+        )
         return False
     return True
 

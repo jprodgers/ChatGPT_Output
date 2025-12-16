@@ -37,7 +37,7 @@ git commit -am "Add godot-cpp submodule"
 
 ## Common build gotchas
 
-- **Missing headers (`ref_counted.hpp`, `global_constants.hpp`).** You cloned `godot-cpp` but did not build it. Run SCons inside `godot-cpp` first with `generate_bindings=yes` so `include/gen` and `bin/` exist.
+- **Missing headers (`method_ptrcall.hpp`, `global_constants.hpp`).** You cloned `godot-cpp` but did not build it, or you are on a newer layout that puts almost everything under `gen/include`. Run SCons inside `godot-cpp` first with `generate_bindings=yes` so generated headers land in either `include/gen/...` (older layout) or `gen/include/...` (newer layout) and the `bin/` library exists.
 - **Built the wrong thing.** The `godot-cpp` build only produces the support library. You still need to build the extension itself by running SCons **from the `cpp/` folder**. The resulting `native_automata` library should land in the repo-level `bin/` folder.
 - **Binary in the wrong folder.** Godot looks for `bin/native_automata.dll` (Windows), `bin/libnative_automata.so` (Linux), or `bin/libnative_automata.dylib` (macOS), plus optional `.debug` suffixes. If the binary sits inside `cpp/` or inside `godot-cpp/bin`, Godot will not load it.
 - **Not sure if everything is wired correctly?** Run `python cpp/check_native_setup.py` from the repo root. The script checks that `godot-cpp` is discoverable, the generated headers exist, and the native library is present in `bin/`.

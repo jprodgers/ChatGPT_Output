@@ -10,35 +10,34 @@ Both return a `Dictionary` with the updated grid plus a `changed` flag so GDScri
 ## Building
 1. Get the Godot C++ bindings source (use the branch that matches your Godot editor version) so SCons can find the headers and
    prebuilt `godot-cpp` library.
-   - Easiest: clone it as a sibling of this repo (the folder layout ends up as `ChatGPT_Output/cpp` and `ChatGPT_Output/godot-cpp`).
-	 ```bash
-	 cd /workspace/ChatGPT_Output
-	 # Pick the branch that matches your installed Godot version; common examples:
-	 #   Godot 4.2.x  -> --branch 4.2
-	 #   Godot 4.1.x  -> --branch 4.1
-	 # The repo does **not** have a `4.5-stable` branch, so use the closest matching 4.x branch or tag.
-	 git clone https://github.com/godotengine/godot-cpp.git --branch 4.2 --depth 1
-	 ```
-	 The build script will automatically pick this up when it sits next to the `cpp` folder.
-	 If you are on a newer Godot version that does not yet have a matching `godot-cpp`
-	 branch (for example Godot 4.5.x as of this writing), either use the closest 4.x
-	 branch or point at `--branch master`. You can list available branches with
-	 `git ls-remote --heads https://github.com/godotengine/godot-cpp.git`.
-   - If you keep `godot-cpp` somewhere else, point the `GODOT_CPP_PATH` environment variable at that folder before running SCons.
-	 - PowerShell example: `$env:GODOT_CPP_PATH = "D:/dev/godot-cpp"`
-	 - CMD example: `set GODOT_CPP_PATH=D:\dev\godot-cpp`
-	 - Bash example: `export GODOT_CPP_PATH=$HOME/dev/godot-cpp`
-   - If you prefer to track `godot-cpp` in Git, add it as a submodule at the repo root so the layout stays consistent with the build script:
-	 ```bash
-	 git submodule add https://github.com/godotengine/godot-cpp.git godot-cpp
-	 git submodule update --init --recursive
-	 # Commit the generated .gitmodules and the godot-cpp entry so collaborators can sync it
-	 ```
-	 Submodules are optional; the project also works with a non-Git copy next to the repo or with `GODOT_CPP_PATH` pointing elsewhere.
+   - Easiest: clone it inside the `cpp` folder so the layout ends up as `ChatGPT_Output/cpp/godot-cpp`.
+     ```bash
+     cd /workspace/ChatGPT_Output
+     # Pick the branch that matches your installed Godot version; common examples:
+     #   Godot 4.2.x  -> --branch 4.2
+     #   Godot 4.1.x  -> --branch 4.1
+     # The repo does **not** have a `4.5-stable` branch, so use the closest matching 4.x branch or tag.
+     git clone https://github.com/godotengine/godot-cpp.git --branch 4.2 --depth 1
+     ```
+     The build script will automatically pick this up when it sits inside `cpp/`. If you are on a newer Godot version that does not yet have a matching `godot-cpp`
+     branch (for example Godot 4.5.x as of this writing), either use the closest 4.x
+     branch or point at `--branch master`. You can list available branches with
+     `git ls-remote --heads https://github.com/godotengine/godot-cpp.git`.
+   - If you keep `godot-cpp` somewhere else (for example as a sibling `ChatGPT_Output/godot-cpp`), point the `GODOT_CPP_PATH` environment variable at that folder before running SCons.
+     - PowerShell example: `$env:GODOT_CPP_PATH = "D:/dev/godot-cpp"`
+     - CMD example: `set GODOT_CPP_PATH=D:\dev\godot-cpp`
+     - Bash example: `export GODOT_CPP_PATH=$HOME/dev/godot-cpp`
+   - If you prefer to track `godot-cpp` in Git, add it as a submodule inside `cpp/` (or at the repo root) so the layout stays consistent with the build script:
+     ```bash
+     git submodule add https://github.com/godotengine/godot-cpp.git cpp/godot-cpp
+     # or: git submodule add https://github.com/godotengine/godot-cpp.git godot-cpp
+     git submodule update --init --recursive
+     # Commit the generated .gitmodules and the godot-cpp entry so collaborators can sync it
+     ```
+     Submodules are optional; the project also works with a non-Git copy next to the repo or with `GODOT_CPP_PATH` pointing elsewhere.
 2. Build the bindings and the extension.
 
-   You must build `godot-cpp` first so its generated headers are present under
-   `godot-cpp/include/gen` and the compiled library exists under
+   You must build `godot-cpp` first so its generated headers are present (older layout: `godot-cpp/include/gen/...`; newer layout: `godot-cpp/gen/include/...`) and the compiled library exists under
    `godot-cpp/bin`. Match the platform/target/toolchain you will use for this
    extension. Example commands:
 
