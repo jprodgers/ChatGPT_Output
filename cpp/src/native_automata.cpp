@@ -36,7 +36,7 @@ protected:
     }
 
 public:
-    Dictionary step_totalistic(const PackedByteArray &grid, Vector2i size, const TypedArray<int32_t> &birth, const TypedArray<int32_t> &survive, int edge_mode) const {
+    Dictionary step_totalistic(const PackedByteArray &grid, Vector2i size, const TypedArray<int32_t> &birth, const TypedArray<int32_t> &survive, int edge_mode) {
         Dictionary result;
         if (size.x <= 0 || size.y <= 0 || grid.size() != size.x * size.y) {
             result["grid"] = grid;
@@ -178,7 +178,7 @@ public:
         return result;
     }
 
-    Dictionary step_sand(const PackedInt32Array &grid, Vector2i size, int edge_mode) const {
+    Dictionary step_sand(const PackedInt32Array &grid, Vector2i size, int edge_mode) {
         Dictionary result;
         if (size.x <= 0 || size.y <= 0 || grid.size() != size.x * size.y) {
             result["grid"] = grid;
