@@ -12,12 +12,13 @@
 #include <godot_cpp/variant/packed_int32_array.hpp>
 #include <godot_cpp/variant/typed_array.hpp>
 #include <godot_cpp/variant/vector2i.hpp>
+#include <algorithm>
 #include <cstdint>
 
 namespace {
 
 inline int clamp_axis(int value, int max_value) {
-    return CLAMP(value, 0, max_value - 1);
+    return std::clamp(value, 0, max_value - 1);
 }
 
 inline int wrap_axis(int value, int max_value) {
