@@ -108,6 +108,13 @@ var drawing_active: bool = false
 var ui_ready: bool = false
 var is_paused: bool = true
 
+var render_pending: bool = false
+var render_task_ids: Array[int] = []
+var render_task_result: Dictionary = {}
+var render_task_mutex: Mutex = Mutex.new()
+
+var native_automata: RefCounted = null
+
 var step_requested: bool = false
 
 var export_pattern: String = "user://screenshot####.png"
@@ -205,9 +212,52 @@ func _ready() -> void:
     if grid_shader != null:
         grid_material.shader = grid_shader
         grid_view.material = grid_material
+    initialize_native_automata()
     set_sand_palette_by_name(sand_palette_name)
     build_ui()
     call_deferred("initialize_grid")
+
+func initialize_native_automata() -> void:
+    if native_automata != null:
+        return
+    var extension_path := "res://cpp/native_automata.gdextension"
+    if not FileAccess.file_exists(extension_path):
+        print("[NativeAutomata] Descriptor missing at %s, using GDScript" % extension_path)
+        return
+
+    var platform_lib := ""
+    match OS.get_name():
+        "Windows":
+            platform_lib = "res://bin/native_automata.dll"
+        "macOS":
+            platform_lib = "res://bin/libnative_automata.dylib"
+        _:
+            platform_lib = "res://bin/libnative_automata.so"
+
+    if not FileAccess.file_exists(platform_lib):
+        print("[NativeAutomata] Native library missing at %s, using GDScript (see cpp/README.md to build)" % platform_lib)
+        return
+
+    if ClassDB.class_exists("NativeAutomata"):
+        var instance: Object = ClassDB.instantiate("NativeAutomata")
+        if instance is RefCounted:
+            native_automata = instance as RefCounted
+            print("[NativeAutomata] Loaded native extension")
+        else:
+            print("[NativeAutomata] Failed to instantiate native extension, using GDScript")
+    else:
+        print("[NativeAutomata] Native extension not found, using GDScript")
+
+func set_info_label_text(text: String) -> void:
+    if info_label == null:
+        return
+    var suffix: String = " (GDScript fallback)"
+    if native_automata != null:
+        suffix = " (native C++ active)"
+    info_label.text = text + suffix
+
+func request_render() -> void:
+    render_pending = true
 
 func build_ui() -> void:
     var root: HBoxContainer = HBoxContainer.new()
@@ -236,7 +286,7 @@ func build_ui() -> void:
     info_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     sidebar_layout.add_child(info_row)
 
-    info_label.text = "Grid ready"
+    set_info_label_text("Grid ready")
     info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
     info_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
     info_label.clip_text = true
@@ -311,7 +361,7 @@ func build_ui() -> void:
 
     view_container.resized.connect(func() -> void:
         update_grid_size()
-        render_grid()
+        request_render()
     )
 
     update_grid_line_controls()
@@ -320,7 +370,7 @@ func build_ui() -> void:
 
 func initialize_grid() -> void:
     update_grid_size()
-    render_grid()
+    request_render()
 
 func build_collapsible_section(title: String, content: Control) -> VBoxContainer:
     var wrapper: VBoxContainer = VBoxContainer.new()
@@ -359,7 +409,7 @@ func build_grid_controls() -> VBoxContainer:
     cell_size_spin.value_changed.connect(func(value: float) -> void:
         cell_size = int(value)
         update_grid_size()
-        render_grid()
+        request_render()
     )
     size_row.add_child(cell_size_spin)
     box.add_child(size_row)
@@ -399,14 +449,14 @@ func build_grid_controls() -> VBoxContainer:
     alive_picker.color_changed.connect(func(c: Color) -> void:
         alive_color = c
         apply_picker_color(alive_picker, c)
-        render_grid()
+        request_render()
     )
     style_picker_button(dead_picker)
     apply_picker_color(dead_picker, dead_color)
     dead_picker.color_changed.connect(func(c: Color) -> void:
         dead_color = c
         apply_picker_color(dead_picker, c)
-        render_grid()
+        request_render()
     )
     color_row.add_child(alive_picker)
     color_row.add_child(dead_picker)
@@ -421,7 +471,7 @@ func build_grid_controls() -> VBoxContainer:
     grid_line_toggle.toggled.connect(func(v: bool) -> void:
         grid_lines_enabled = v
         update_grid_line_controls()
-        render_grid()
+        request_render()
     )
     grid_line_row.add_child(grid_line_toggle)
     grid_line_thickness_spin.min_value = 1
@@ -430,7 +480,7 @@ func build_grid_controls() -> VBoxContainer:
     grid_line_thickness_spin.value = grid_line_thickness
     grid_line_thickness_spin.value_changed.connect(func(v: float) -> void:
         grid_line_thickness = int(v)
-        render_grid()
+        request_render()
     )
     grid_line_row.add_child(grid_line_thickness_spin)
     style_picker_button(grid_line_color_picker)
@@ -438,7 +488,7 @@ func build_grid_controls() -> VBoxContainer:
     grid_line_color_picker.color_changed.connect(func(c: Color) -> void:
         grid_line_color = c
         apply_picker_color(grid_line_color_picker, c)
-        render_grid()
+        request_render()
     )
     grid_line_row.add_child(grid_line_color_picker)
     box.add_child(grid_line_row)
@@ -476,7 +526,7 @@ func build_grid_controls() -> VBoxContainer:
     fill_row.add_child(fill_spin)
     var seed_button: Button = Button.new()
     seed_button.text = "Randomize"
-    seed_button.pressed.connect(func() -> void: random_fill_grid(); render_grid())
+    seed_button.pressed.connect(func() -> void: random_fill_grid(); request_render())
     fill_row.add_child(seed_button)
     box.add_child(fill_row)
 
@@ -487,7 +537,7 @@ func build_grid_controls() -> VBoxContainer:
         clear_ants()
         clear_turmites()
         clear_sand()
-        render_grid()
+        request_render()
     )
     box.add_child(clear_button)
 
@@ -569,18 +619,18 @@ func build_wolfram_controls() -> VBoxContainer:
     buttons.add_child(toggle)
     var step: Button = Button.new()
     step.text = "Step"
-    step.pressed.connect(func() -> void: step_wolfram(); render_grid())
+    step.pressed.connect(func() -> void: step_wolfram(); request_render())
     buttons.add_child(step)
     box.add_child(buttons)
 
     var seed_row: HBoxContainer = HBoxContainer.new()
     var random_seed: Button = Button.new()
     random_seed.text = "Seed top row"
-    random_seed.pressed.connect(func() -> void: seed_wolfram_row(true); render_grid())
+    random_seed.pressed.connect(func() -> void: seed_wolfram_row(true); request_render())
     seed_row.add_child(random_seed)
     var center_seed: Button = Button.new()
     center_seed.text = "Center dot"
-    center_seed.pressed.connect(func() -> void: seed_wolfram_row(false); render_grid())
+    center_seed.pressed.connect(func() -> void: seed_wolfram_row(false); request_render())
     seed_row.add_child(center_seed)
     box.add_child(seed_row)
 
@@ -589,7 +639,7 @@ func build_wolfram_controls() -> VBoxContainer:
     fill_button.text = "Fill screen"
     fill_button.pressed.connect(func() -> void:
         fill_wolfram_screen()
-        render_grid()
+        request_render()
     )
     fill_row.add_child(fill_button)
     box.add_child(fill_row)
@@ -641,14 +691,14 @@ func build_ant_controls() -> VBoxContainer:
     buttons.add_child(toggle)
     var step: Button = Button.new()
     step.text = "Step"
-    step.pressed.connect(func() -> void: step_ants(); render_grid())
+    step.pressed.connect(func() -> void: step_ants(); request_render())
     buttons.add_child(step)
     box.add_child(buttons)
 
     var clear_row: HBoxContainer = HBoxContainer.new()
     var clear_button: Button = Button.new()
     clear_button.text = "Clear ants"
-    clear_button.pressed.connect(func() -> void: clear_ants(); render_grid())
+    clear_button.pressed.connect(func() -> void: clear_ants(); request_render())
     clear_row.add_child(clear_button)
     box.add_child(clear_row)
 
@@ -679,7 +729,7 @@ func build_gol_controls() -> VBoxContainer:
     buttons.add_child(toggle)
     var step: Button = Button.new()
     step.text = "Step"
-    step.pressed.connect(func() -> void: step_game_of_life(); render_grid())
+    step.pressed.connect(func() -> void: step_game_of_life(); request_render())
     buttons.add_child(step)
     box.add_child(buttons)
 
@@ -710,7 +760,7 @@ func build_day_night_controls() -> VBoxContainer:
     buttons.add_child(toggle)
     var step: Button = Button.new()
     step.text = "Step"
-    step.pressed.connect(func() -> void: step_day_night(); render_grid())
+    step.pressed.connect(func() -> void: step_day_night(); request_render())
     buttons.add_child(step)
     box.add_child(buttons)
 
@@ -741,7 +791,7 @@ func build_seeds_controls() -> VBoxContainer:
     buttons.add_child(toggle)
     var step: Button = Button.new()
     step.text = "Step"
-    step.pressed.connect(func() -> void: step_seeds(); render_grid())
+    step.pressed.connect(func() -> void: step_seeds(); request_render())
     buttons.add_child(step)
     box.add_child(buttons)
 
@@ -762,7 +812,7 @@ func build_sand_controls() -> VBoxContainer:
     sand_palette_option.item_selected.connect(func(index: int) -> void:
         var name: String = sand_palette_option.get_item_text(index)
         set_sand_palette_by_name(name)
-        render_grid()
+        request_render()
     )
     palette_row.add_child(sand_palette_option)
     box.add_child(palette_row)
@@ -784,7 +834,7 @@ func build_sand_controls() -> VBoxContainer:
             sand_palette_name = "Custom"
             sand_palette_option.select(max(0, SAND_PALETTE_ORDER.find("Custom")))
             apply_picker_color(picker, c)
-            render_grid()
+            request_render()
         )
         sand_color_pickers.append(picker)
         color_row.add_child(picker)
@@ -804,7 +854,7 @@ func build_sand_controls() -> VBoxContainer:
     drop_button.text = "Drop"
     drop_button.pressed.connect(func() -> void:
         add_sand_to_center(sand_drop_amount)
-        render_grid()
+        request_render()
     )
     amount_row.add_child(drop_button)
     box.add_child(amount_row)
@@ -841,14 +891,14 @@ func build_sand_controls() -> VBoxContainer:
     step.text = "Step"
     step.pressed.connect(func() -> void:
         step_sand()
-        render_grid()
+        request_render()
     )
     buttons.add_child(step)
     var clear_button: Button = Button.new()
     clear_button.text = "Clear sand"
     clear_button.pressed.connect(func() -> void:
         clear_sand()
-        render_grid()
+        request_render()
     )
     buttons.add_child(clear_button)
     box.add_child(buttons)
@@ -919,13 +969,13 @@ func build_turmite_controls() -> VBoxContainer:
     buttons.add_child(toggle)
     var step: Button = Button.new()
     step.text = "Step"
-    step.pressed.connect(func() -> void: step_turmites(); render_grid())
+    step.pressed.connect(func() -> void: step_turmites(); request_render())
     buttons.add_child(step)
     var clear_button: Button = Button.new()
     clear_button.text = "Clear"
     clear_button.pressed.connect(func() -> void:
         clear_turmites()
-        render_grid()
+        request_render()
     )
     buttons.add_child(clear_button)
     box.add_child(buttons)
@@ -978,7 +1028,9 @@ func update_grid_size() -> void:
             turmites[i] = wrap_position(turmites[i])
     else:
         grid_size = new_size
-    info_label.text = "Grid: %dx%d cells @ %d px" % [grid_size.x, grid_size.y, cell_size]
+    set_info_label_text("Grid: %dx%d cells @ %d px" % [grid_size.x, grid_size.y, cell_size])
+    if size_changed:
+        request_render()
 
 func random_fill_grid() -> void:
     var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -989,6 +1041,7 @@ func random_fill_grid() -> void:
         else:
             grid[i] = 0
     wolfram_row = 0
+    request_render()
 
 func seed_wolfram_row(randomize: bool) -> void:
     var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -1002,6 +1055,7 @@ func seed_wolfram_row(randomize: bool) -> void:
         var center: int = grid_size.x / 2
         grid[top_row * grid_size.x + center] = 1
     wolfram_row = 1
+    request_render()
 
 func spawn_ants(count: int, color: Color) -> void:
     var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -1010,13 +1064,14 @@ func spawn_ants(count: int, color: Color) -> void:
         ants.append(Vector2i(rng.randi_range(0, grid_size.x - 1), rng.randi_range(0, grid_size.y - 1)))
         ant_directions.append(rng.randi_range(0, DIRS.size() - 1))
         ant_colors.append(color)
-    render_grid()
+    request_render()
 
 func clear_ants() -> void:
     ants.clear()
     ant_directions.clear()
     ant_colors.clear()
     ant_accumulator = 0.0
+    request_render()
 
 func wrap_position(pos: Vector2i) -> Vector2i:
     return Vector2i(posmod(pos.x, grid_size.x), posmod(pos.y, grid_size.y))
@@ -1105,7 +1160,7 @@ func handle_draw_input(global_pos: Vector2) -> bool:
         return false
     var changed: bool = apply_draw_action(pos)
     if changed:
-        render_grid()
+        request_render()
     return changed
 
 func handle_draw_local(local_pos: Vector2) -> bool:
@@ -1114,7 +1169,7 @@ func handle_draw_local(local_pos: Vector2) -> bool:
         return false
     var changed: bool = apply_draw_action(pos)
     if changed:
-        render_grid()
+        request_render()
     return changed
 
 func process_wolfram(delta: float) -> bool:
@@ -1222,6 +1277,7 @@ func step_wolfram(allow_wrap: bool = true) -> void:
         var state: int = (wolfram_rule >> key) & 1
         set_cell(Vector2i(x, wolfram_row), state)
     wolfram_row = (wolfram_row + 1) % grid_size.y if allow_wrap else wolfram_row + 1
+    request_render()
 
 func fill_wolfram_screen() -> void:
     if grid_size.y <= 0:
@@ -1233,6 +1289,7 @@ func fill_wolfram_screen() -> void:
         step_wolfram(false)
     wolfram_enabled = false
     wolfram_accumulator = 0.0
+    request_render()
 
 func step_ants() -> void:
     var remove_indices: Array[int] = []
@@ -1271,6 +1328,8 @@ func step_ants() -> void:
         ants.remove_at(idx)
         ant_directions.remove_at(idx)
         ant_colors.remove_at(idx)
+    if not ants.is_empty() or not remove_indices.is_empty():
+        request_render()
 
 func step_game_of_life() -> void:
     step_totalistic([3], [2, 3])
@@ -1282,10 +1341,19 @@ func step_seeds() -> void:
     step_totalistic([2], [])
 
 func step_totalistic(birth: Array[int], survive: Array[int]) -> void:
+    if native_automata != null and native_automata.has_method("step_totalistic"):
+        var native_result: Dictionary = native_automata.call("step_totalistic", grid, grid_size, birth, survive, edge_mode)
+        if native_result.has("grid") and native_result["grid"] is PackedByteArray:
+            grid = native_result["grid"]
+            if native_result.get("changed", true):
+                request_render()
+            return
+
     var next_state: PackedByteArray = PackedByteArray()
     next_state.resize(grid.size())
     var birth_set: Array[int] = birth
     var survive_set: Array[int] = survive
+    var changed: bool = false
     for y in range(grid_size.y):
         for x in range(grid_size.x):
             var alive: int = sample_cell(Vector2i(x, y))
@@ -1302,8 +1370,13 @@ func step_totalistic(birth: Array[int], survive: Array[int]) -> void:
             else:
                 if birth_set.has(neighbors):
                     new_val = 1
-            next_state[y * grid_size.x + x] = new_val
+            var idx: int = y * grid_size.x + x
+            next_state[idx] = new_val
+            if not changed and new_val != grid[idx]:
+                changed = true
     grid = next_state
+    if changed:
+        request_render()
 
 func spawn_turmites(count: int, color: Color) -> void:
     var rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -1312,13 +1385,14 @@ func spawn_turmites(count: int, color: Color) -> void:
         turmites.append(Vector2i(rng.randi_range(0, grid_size.x - 1), rng.randi_range(0, grid_size.y - 1)))
         turmite_directions.append(rng.randi_range(0, DIRS.size() - 1))
         turmite_colors.append(color)
-    render_grid()
+    request_render()
 
 func clear_turmites() -> void:
     turmites.clear()
     turmite_directions.clear()
     turmite_colors.clear()
     turmite_accumulator = 0.0
+    request_render()
 
 func remove_ants_at(pos: Vector2i) -> bool:
     var removed: bool = false
@@ -1391,6 +1465,8 @@ func step_turmites() -> void:
         turmites.remove_at(remove_idx)
         turmite_directions.remove_at(remove_idx)
         turmite_colors.remove_at(remove_idx)
+    if not turmites.is_empty() or not remove_indices.is_empty():
+        request_render()
 
 func add_sand_at(pos: Vector2i, amount: int) -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:
@@ -1403,6 +1479,7 @@ func add_sand_at(pos: Vector2i, amount: int) -> void:
     var idx: int = pos.y * grid_size.x + pos.x
     if idx >= 0 and idx < sand_grid.size():
         sand_grid[idx] += max(0, amount)
+        request_render()
 
 func add_sand_to_center(amount: int) -> void:
     var center: Vector2i = Vector2i(grid_size.x / 2, grid_size.y / 2)
@@ -1411,11 +1488,20 @@ func add_sand_to_center(amount: int) -> void:
 func clear_sand() -> void:
     sand_grid.fill(0)
     sand_accumulator = 0.0
+    request_render()
 
 func step_sand() -> void:
     if sand_grid.size() != grid_size.x * grid_size.y:
         sand_grid.resize(grid_size.x * grid_size.y)
         sand_grid.fill(0)
+    if native_automata != null and native_automata.has_method("step_sand"):
+        var native_result: Dictionary = native_automata.call("step_sand", sand_grid, grid_size, edge_mode)
+        if native_result.has("grid") and native_result["grid"] is PackedInt32Array:
+            sand_grid = native_result["grid"]
+            if native_result.get("changed", false):
+                request_render()
+            return
+
     var updates: Array[Vector2i] = []
     for y in range(grid_size.y):
         for x in range(grid_size.x):
@@ -1441,56 +1527,114 @@ func step_sand() -> void:
                         continue
             var nidx: int = next.y * grid_size.x + next.x
             sand_grid[nidx] += 1
+    if not updates.is_empty():
+        request_render()
 
-func build_grid_image() -> Image:
-    var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_R8)
-    if grid.size() == grid_size.x * grid_size.y:
-        var data: PackedByteArray = PackedByteArray()
-        data.resize(grid.size())
-        for i in range(grid.size()):
-            data[i] = 255 if grid[i] != 0 else 0
-        img.set_data(grid_size.x, grid_size.y, false, Image.FORMAT_R8, data)
+func build_grid_image_from_data(size: Vector2i, data: PackedByteArray) -> Image:
+    var img: Image = Image.create(size.x, size.y, false, Image.FORMAT_R8)
+    if data.size() == size.x * size.y:
+        var bytes: PackedByteArray = PackedByteArray()
+        bytes.resize(data.size())
+        for i in range(data.size()):
+            bytes[i] = 255 if data[i] != 0 else 0
+        img.set_data(size.x, size.y, false, Image.FORMAT_R8, bytes)
     return img
 
-func build_sand_image() -> Image:
-    var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_R8)
-    var data: PackedByteArray = PackedByteArray()
-    data.resize(grid_size.x * grid_size.y)
-    var palette_size: int = max(1, sand_colors.size())
-    for y in range(grid_size.y):
-        for x in range(grid_size.x):
-            var idx: int = y * grid_size.x + x
-            if idx >= sand_grid.size():
+func build_sand_image_from_data(size: Vector2i, data: PackedInt32Array, palette: Array[Color]) -> Image:
+    var img: Image = Image.create(size.x, size.y, false, Image.FORMAT_R8)
+    var bytes: PackedByteArray = PackedByteArray()
+    bytes.resize(size.x * size.y)
+    var palette_size: int = max(1, palette.size())
+    for y in range(size.y):
+        for x in range(size.x):
+            var idx: int = y * size.x + x
+            if idx >= data.size():
                 continue
-            var level: int = sand_grid[idx] % palette_size
-            data[idx] = level
-    img.set_data(grid_size.x, grid_size.y, false, Image.FORMAT_R8, data)
+            var level: int = data[idx] % palette_size
+            bytes[idx] = level
+    img.set_data(size.x, size.y, false, Image.FORMAT_R8, bytes)
     return img
 
-func build_overlay_image() -> Image:
-    var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_RGBA8)
-    for i in range(ants.size()):
-        var pos: Vector2i = ants[i]
-        if pos.x >= 0 and pos.x < grid_size.x and pos.y >= 0 and pos.y < grid_size.y:
-            img.set_pixel(pos.x, pos.y, ant_colors[i])
-    for i in range(turmites.size()):
-        var pos: Vector2i = turmites[i]
-        if pos.x >= 0 and pos.x < grid_size.x and pos.y >= 0 and pos.y < grid_size.y:
-            img.set_pixel(pos.x, pos.y, turmite_colors[i])
+func build_overlay_image_from_data(size: Vector2i, ant_pos: Array[Vector2i], ant_cols: Array[Color], turmite_pos: Array[Vector2i], turmite_cols: Array[Color]) -> Image:
+    var img: Image = Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
+    for i in range(ant_pos.size()):
+        var pos: Vector2i = ant_pos[i]
+        if pos.x >= 0 and pos.x < size.x and pos.y >= 0 and pos.y < size.y:
+            img.set_pixel(pos.x, pos.y, ant_cols[i])
+    for i in range(turmite_pos.size()):
+        var pos: Vector2i = turmite_pos[i]
+        if pos.x >= 0 and pos.x < size.x and pos.y >= 0 and pos.y < size.y:
+            img.set_pixel(pos.x, pos.y, turmite_cols[i])
     return img
 
-func render_grid() -> void:
-    if grid_size.x <= 0 or grid_size.y <= 0:
+func capture_render_state() -> Dictionary:
+    return {
+        "grid_size": grid_size,
+        "grid": grid,
+        "sand_grid": sand_grid,
+        "sand_colors": sand_colors.duplicate(true),
+        "ants": ants.duplicate(true),
+        "ant_colors": ant_colors.duplicate(true),
+        "turmites": turmites.duplicate(true),
+        "turmite_colors": turmite_colors.duplicate(true),
+    }
+
+func build_render_component(params: Dictionary, component: String) -> Dictionary:
+    var size: Vector2i = params.get("grid_size", Vector2i.ZERO)
+    var grid_data: PackedByteArray = params.get("grid", PackedByteArray())
+    var sand_data: PackedInt32Array = params.get("sand_grid", PackedInt32Array())
+    var palette: Array = params.get("sand_colors", [])
+    var ant_pos: Array = params.get("ants", [])
+    var ant_cols: Array = params.get("ant_colors", [])
+    var turmite_pos: Array = params.get("turmites", [])
+    var turmite_cols: Array = params.get("turmite_colors", [])
+
+    var result: Dictionary = {}
+    if component == "grid":
+        result[component] = build_grid_image_from_data(size, grid_data)
+    elif component == "sand":
+        result[component] = build_sand_image_from_data(size, sand_data, palette)
+    elif component == "overlay":
+        result[component] = build_overlay_image_from_data(size, ant_pos, ant_cols, turmite_pos, turmite_cols)
+
+    render_task_mutex.lock()
+    for key in result.keys():
+        render_task_result[key] = result[key]
+    render_task_mutex.unlock()
+
+    return result
+
+func start_render_task() -> void:
+    if render_task_ids.size() > 0:
         return
-    var img: Image = build_grid_image()
-    var sand_img: Image = build_sand_image()
-    var overlay_img: Image = build_overlay_image()
+    if grid_size.x <= 0 or grid_size.y <= 0:
+        render_pending = false
+        return
+    var params: Dictionary = capture_render_state()
+    render_task_mutex.lock()
+    render_task_result.clear()
+    render_task_mutex.unlock()
 
-    state_texture = update_image_texture(state_texture, img)
-    sand_texture = update_image_texture(sand_texture, sand_img)
-    overlay_texture = update_image_texture(overlay_texture, overlay_img)
+    var components: Array[String] = ["grid", "sand", "overlay"]
+    for component in components:
+        var task_id: int = WorkerThreadPool.add_task(Callable(self, "build_render_component").bind(params, component), false, "render_" + component)
+        render_task_ids.append(task_id)
+    render_pending = false
 
-    grid_view.texture = state_texture
+func apply_render_result(result: Dictionary) -> void:
+    var img: Image = result.get("grid", null)
+    var sand_img: Image = result.get("sand", null)
+    var overlay_img: Image = result.get("overlay", null)
+
+    if img != null:
+        state_texture = update_image_texture(state_texture, img)
+    if sand_img != null:
+        sand_texture = update_image_texture(sand_texture, sand_img)
+    if overlay_img != null:
+        overlay_texture = update_image_texture(overlay_texture, overlay_img)
+
+    if state_texture != null:
+        grid_view.texture = state_texture
     if grid_material.shader != null:
         grid_material.set_shader_parameter("state_tex", state_texture)
         grid_material.set_shader_parameter("sand_tex", sand_texture)
@@ -1505,6 +1649,21 @@ func render_grid() -> void:
         grid_material.set_shader_parameter("cell_size", float(cell_size))
         grid_view.queue_redraw()
     layout_grid_view(Vector2i(grid_size.x, grid_size.y))
+
+func take_render_result() -> Dictionary:
+    render_task_mutex.lock()
+    var result: Dictionary = render_task_result.duplicate(true)
+    render_task_result.clear()
+    render_task_mutex.unlock()
+    return result
+
+func render_grid_sync() -> void:
+    var result: Dictionary = {}
+    var params: Dictionary = capture_render_state()
+    var components: Array[String] = ["grid", "sand", "overlay"]
+    for component in components:
+        result.merge(build_render_component(params, component))
+    apply_render_result(result)
 
 func update_image_texture(tex: ImageTexture, img: Image) -> ImageTexture:
     if tex == null:
@@ -1535,9 +1694,9 @@ func layout_grid_view(tex_size: Vector2i) -> void:
 
 func export_grid_image(path: String) -> void:
     if grid_size.x <= 0 or grid_size.y <= 0:
-        info_label.text = "Export failed (empty grid)"
+        set_info_label_text("Export failed (empty grid)")
         return
-    render_grid()
+    render_grid_sync()
     var img: Image = build_export_image()
     img.resize(grid_size.x * cell_size, grid_size.y * cell_size, Image.INTERPOLATE_NEAREST)
     if grid_lines_enabled and grid_line_thickness > 0:
@@ -1547,9 +1706,9 @@ func export_grid_image(path: String) -> void:
         if buffer.size() > 0:
             JavaScriptBridge.download_buffer(buffer, resolve_web_export_filename(path), "image/png")
             export_counter += 1
-            info_label.text = "Exported: %s" % resolve_web_export_filename(path)
+            set_info_label_text("Exported: %s" % resolve_web_export_filename(path))
         else:
-            info_label.text = "Export failed (empty buffer)"
+            set_info_label_text("Export failed (empty buffer)")
     else:
         var abs_path: String = ProjectSettings.globalize_path(path)
         var dir_path: String = abs_path.get_base_dir()
@@ -1558,10 +1717,10 @@ func export_grid_image(path: String) -> void:
         var err: int = img.save_png(abs_path)
         if err == OK:
             export_counter += 1
-            info_label.text = "Exported: %s" % abs_path
+            set_info_label_text("Exported: %s" % abs_path)
         else:
-            info_label.text = "Export failed (%d)" % err
-    render_grid()
+            set_info_label_text("Export failed (%d)" % err)
+    request_render()
 
 func build_export_image() -> Image:
     var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_RGBA8)
@@ -1635,34 +1794,54 @@ func _process(delta: float) -> void:
         return
 
     var playback_active: bool = not is_paused or step_requested
+    var state_changed: bool = false
     if playback_active:
         if step_requested:
             if wolfram_enabled:
                 step_wolfram()
+                state_changed = true
             if ants_enabled:
                 step_ants()
+                state_changed = true
             if gol_enabled:
                 step_game_of_life()
+                state_changed = true
             if day_night_enabled:
                 step_day_night()
+                state_changed = true
             if seeds_enabled:
                 step_seeds()
+                state_changed = true
             if turmite_enabled:
                 step_turmites()
+                state_changed = true
             if sand_enabled:
                 step_sand()
+                state_changed = true
         else:
             var scaled_delta: float = delta * max(global_rate, 0.0)
-            process_wolfram(scaled_delta)
-            process_ants(scaled_delta)
-            process_game_of_life(scaled_delta)
-            process_day_night(scaled_delta)
-            process_seeds(scaled_delta)
-            process_turmites(scaled_delta)
-            process_sand(scaled_delta)
+            state_changed = process_wolfram(scaled_delta) or state_changed
+            state_changed = process_ants(scaled_delta) or state_changed
+            state_changed = process_game_of_life(scaled_delta) or state_changed
+            state_changed = process_day_night(scaled_delta) or state_changed
+            state_changed = process_seeds(scaled_delta) or state_changed
+            state_changed = process_turmites(scaled_delta) or state_changed
+            state_changed = process_sand(scaled_delta) or state_changed
         step_requested = false
 
-    render_grid()
+    if state_changed:
+        request_render()
+
+    var completed_count: int = 0
+    for task_id in render_task_ids:
+        if WorkerThreadPool.is_task_completed(task_id):
+            completed_count += 1
+    if render_task_ids.size() > 0 and completed_count == render_task_ids.size():
+        var result: Dictionary = take_render_result()
+        render_task_ids.clear()
+        apply_render_result(result)
+    if render_pending and render_task_ids.is_empty():
+        start_render_task()
 
 func on_grid_gui_input(event: InputEvent) -> void:
     var handled: bool = false
@@ -1672,7 +1851,7 @@ func on_grid_gui_input(event: InputEvent) -> void:
             var pos: Vector2i = local_to_cell(sand_mouse.position)
             if pos.x >= 0 and pos.y >= 0:
                 add_sand_at(pos, sand_drop_amount)
-                render_grid()
+                request_render()
                 handled = true
 
     if not draw_enabled:
@@ -1732,4 +1911,4 @@ func _unhandled_input(event: InputEvent) -> void:
 func _notification(what: int) -> void:
     if what == NOTIFICATION_RESIZED:
         update_grid_size()
-        render_grid()
+        request_render()
