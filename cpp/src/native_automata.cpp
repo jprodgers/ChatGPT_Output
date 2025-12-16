@@ -1,5 +1,6 @@
 #include <gdextension_interface.h>
 
+#include <godot_cpp/core/binder_common.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/classes/ref_counted.hpp>
 
@@ -28,7 +29,7 @@ inline int wrap_axis(int value, int max_value) {
 
 } // namespace
 
-namespace godot {
+using namespace godot;
 
 class NativeAutomata : public RefCounted {
     GDCLASS(NativeAutomata, RefCounted);
@@ -247,8 +248,6 @@ public:
         return result;
     }
 };
-
-} // namespace godot
 
 extern "C" {
 
