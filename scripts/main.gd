@@ -1257,6 +1257,15 @@ func process_sand(delta: float) -> bool:
 	return stepped
 
 func step_wolfram(allow_wrap: bool = true) -> void:
+    if native_automata != null and native_automata.has_method("step_wolfram"):
+        var native_result: Dictionary = native_automata.call("step_wolfram", grid, grid_size, wolfram_rule, wolfram_row, edge_mode, allow_wrap)
+        if native_result.has("grid") and native_result["grid"] is PackedByteArray:
+            grid = native_result["grid"]
+        if native_result.has("row"):
+            wolfram_row = int(native_result.get("row", wolfram_row))
+        if native_result.get("changed", true):
+            request_render()
+        return
     if grid_size.y <= 0:
         return
     if allow_wrap and grid_size.y > 0:
@@ -1292,6 +1301,19 @@ func fill_wolfram_screen() -> void:
     request_render()
 
 func step_ants() -> void:
+    if native_automata != null and native_automata.has_method("step_ants"):
+        var native_result: Dictionary = native_automata.call("step_ants", grid, grid_size, edge_mode, ants, ant_directions, ant_colors)
+        if native_result.has("grid") and native_result["grid"] is PackedByteArray:
+            grid = native_result["grid"]
+        if native_result.has("ants") and native_result["ants"] is Array:
+            ants = native_result["ants"]
+        if native_result.has("directions") and native_result["directions"] is Array:
+            ant_directions = native_result["directions"]
+        if native_result.has("colors") and native_result["colors"] is Array:
+            ant_colors = native_result["colors"]
+        if native_result.get("changed", true):
+            request_render()
+        return
     var remove_indices: Array[int] = []
     for i in range(ants.size()):
         var pos: Vector2i = ants[i]
@@ -1423,6 +1445,19 @@ func remove_turmites_at(pos: Vector2i) -> bool:
 	return removed
 
 func step_turmites() -> void:
+    if native_automata != null and native_automata.has_method("step_turmites"):
+        var native_result: Dictionary = native_automata.call("step_turmites", grid, grid_size, edge_mode, turmites, turmite_directions, turmite_colors, turmite_rule)
+        if native_result.has("grid") and native_result["grid"] is PackedByteArray:
+            grid = native_result["grid"]
+        if native_result.has("ants") and native_result["ants"] is Array:
+            turmites = native_result["ants"]
+        if native_result.has("directions") and native_result["directions"] is Array:
+            turmite_directions = native_result["directions"]
+        if native_result.has("colors") and native_result["colors"] is Array:
+            turmite_colors = native_result["colors"]
+        if native_result.get("changed", true):
+            request_render()
+        return
     var remove_indices: Array[int] = []
     var rule_upper: String = turmite_rule.to_upper()
     if rule_upper.length() < 2:
