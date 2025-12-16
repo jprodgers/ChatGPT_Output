@@ -1,14 +1,17 @@
-#include <godot_cpp/classes/ref_counted.hpp>
-#include <godot_cpp/core/class_db.hpp>
-#include <godot_cpp/core/defs.hpp>
 #include <gdextension_interface.h>
+
+#include <godot_cpp/classes/class_db.hpp>
+#include <godot_cpp/classes/ref_counted.hpp>
+
 #include <godot_cpp/godot.hpp>
+
+#include <godot_cpp/templates/vector.hpp>
+
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
 #include <godot_cpp/variant/typed_array.hpp>
 #include <godot_cpp/variant/vector2i.hpp>
-#include <godot_cpp/templates/vector.hpp>
 #include <cstdint>
 
 using namespace godot;
