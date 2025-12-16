@@ -1,14 +1,14 @@
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/core/defs.hpp>
-#include <godot_cpp/gdextension_interface.h>
+#include <gdextension_interface.h>
 #include <godot_cpp/godot.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
 #include <godot_cpp/variant/packed_int32_array.hpp>
 #include <godot_cpp/variant/typed_array.hpp>
 #include <godot_cpp/variant/vector2i.hpp>
-#include <godot_cpp/variant/vector.hpp>
+#include <godot_cpp/templates/vector.hpp>
 #include <cstdint>
 
 using namespace godot;
@@ -190,7 +190,6 @@ public:
         const int32_t *src = grid.ptr();
         int32_t *dst = next.ptrw();
         Vector<int> updates;
-        updates.reserve(size.x * size.y);
 
         for (int y = 0; y < size.y; y++) {
             for (int x = 0; x < size.x; x++) {
