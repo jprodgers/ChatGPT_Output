@@ -22,12 +22,12 @@ window/size/mode=2
 window/size/width=1400
 window/size/height=900
 
+[gdextension]
+
+files=PackedStringArray("res://cpp/native_automata.gdextension")
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
-
-[gdextension]
-
-files=PackedStringArray("res://cpp/native_automata.gdextension")
