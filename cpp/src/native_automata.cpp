@@ -24,11 +24,11 @@ constexpr int EDGE_WRAP = 0;
 constexpr int EDGE_BOUNCE = 1;
 
 constexpr int DIR_COUNT = 4;
-const Vector2i DIRS[DIR_COUNT] = {
-    Vector2i(0, -1),
-    Vector2i(1, 0),
-    Vector2i(0, 1),
-    Vector2i(-1, 0),
+const godot::Vector2i DIRS[DIR_COUNT] = {
+    godot::Vector2i(0, -1),
+    godot::Vector2i(1, 0),
+    godot::Vector2i(0, 1),
+    godot::Vector2i(-1, 0),
 };
 
 inline int clamp_axis(int value, int max_value) {
@@ -50,7 +50,7 @@ inline int bounce_axis(int value, int max_value) {
     return value;
 }
 
-inline uint8_t sample_cell(const uint8_t *grid, Vector2i size, int x, int y, int edge_mode) {
+inline uint8_t sample_cell(const uint8_t *grid, godot::Vector2i size, int x, int y, int edge_mode) {
     if (x >= 0 && x < size.x && y >= 0 && y < size.y) {
         return grid[y * size.x + x];
     }
@@ -322,7 +322,7 @@ public:
             source_row = current_row - 1;
         }
 
-        bool changed = false;
+        bool changed = true; // always advance the sweep row
         for (int x = 0; x < size.x; x++) {
             const uint8_t left = sample_cell(src, size, x - 1, source_row, edge_mode);
             const uint8_t center = sample_cell(src, size, x, source_row, edge_mode);
@@ -343,7 +343,7 @@ public:
 
     Dictionary step_ants(const PackedByteArray &grid, Vector2i size, int edge_mode, const TypedArray<Vector2i> &ants, const TypedArray<int32_t> &directions, const TypedArray<Color> &colors) {
         Dictionary result;
-        const int count = std::min(ants.size(), directions.size());
+        const int count = static_cast<int>(std::min<int64_t>(ants.size(), directions.size()));
         if (size.x <= 0 || size.y <= 0 || grid.size() != size.x * size.y || count <= 0) {
             result["grid"] = grid;
             result["ants"] = ants;
@@ -357,16 +357,8 @@ public:
         uint8_t *dst = next_grid.ptrw();
 
         TypedArray<Vector2i> next_ants;
-        next_ants.resize(0);
-        next_ants.reserve(count);
-
         TypedArray<int32_t> next_dirs;
-        next_dirs.resize(0);
-        next_dirs.reserve(count);
-
         TypedArray<Color> next_colors;
-        next_colors.resize(0);
-        next_colors.reserve(std::min(count, colors.size()));
 
         bool changed = false;
 
@@ -377,7 +369,7 @@ public:
                 continue;
             }
 
-            int dir = directions[i] % DIR_COUNT;
+            int dir = static_cast<int32_t>(directions[i]) % DIR_COUNT;
             if (dir < 0) {
                 dir += DIR_COUNT;
             }
@@ -392,7 +384,8 @@ public:
                 dst[idx] = 1;
             }
 
-            Vector2i next = pos + DIRS[dir];
+            const Vector2i next_dir = DIRS[dir];
+            Vector2i next = pos + next_dir;
             switch (edge_mode) {
                 case EDGE_WRAP:
                     next.x = wrap_axis(next.x, size.x);
@@ -414,7 +407,7 @@ public:
                     break;
             }
 
-            if (!changed && (pos != next || dir != directions[i] || dst[idx] != current)) {
+            if (!changed && (pos != next || dir != static_cast<int32_t>(directions[i]) || dst[idx] != current)) {
                 changed = true;
             }
 
@@ -437,7 +430,7 @@ public:
 
     Dictionary step_turmites(const PackedByteArray &grid, Vector2i size, int edge_mode, const TypedArray<Vector2i> &ants, const TypedArray<int32_t> &directions, const TypedArray<Color> &colors, const String &rule) {
         Dictionary result;
-        const int count = std::min(ants.size(), directions.size());
+        const int count = static_cast<int>(std::min<int64_t>(ants.size(), directions.size()));
         if (size.x <= 0 || size.y <= 0 || grid.size() != size.x * size.y || count <= 0) {
             result["grid"] = grid;
             result["ants"] = ants;
@@ -456,11 +449,8 @@ public:
         }
 
         TypedArray<Vector2i> next_ants;
-        next_ants.reserve(count);
         TypedArray<int32_t> next_dirs;
-        next_dirs.reserve(count);
         TypedArray<Color> next_colors;
-        next_colors.reserve(std::min(count, colors.size()));
 
         bool changed = false;
 
@@ -471,7 +461,7 @@ public:
                 continue;
             }
 
-            int dir = directions[i] % DIR_COUNT;
+            int dir = static_cast<int32_t>(directions[i]) % DIR_COUNT;
             if (dir < 0) {
                 dir += DIR_COUNT;
             }
@@ -488,7 +478,8 @@ public:
 
             dst[idx] = 1 - current;
 
-            Vector2i next = pos + DIRS[dir];
+            const Vector2i next_dir = DIRS[dir];
+            Vector2i next = pos + next_dir;
             switch (edge_mode) {
                 case EDGE_WRAP:
                     next.x = wrap_axis(next.x, size.x);
@@ -510,7 +501,7 @@ public:
                     break;
             }
 
-            if (!changed && (pos != next || dir != directions[i] || dst[idx] != current)) {
+            if (!changed && (pos != next || dir != static_cast<int32_t>(directions[i]) || dst[idx] != current)) {
                 changed = true;
             }
 
