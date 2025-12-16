@@ -6,7 +6,31 @@ use_mingw = ARGUMENTS.get("use_mingw", "no") == "yes"
 
 env = Environment(tools=["mingw"] if use_mingw else None)
 
-godot_cpp_path = ARGUMENTS.get("godot_cpp_path", os.environ.get("GODOT_CPP_PATH", "godot-cpp"))
+
+def resolve_godot_cpp_path():
+    # 1) explicit override via CLI
+    cli_path = ARGUMENTS.get("godot_cpp_path")
+    if cli_path:
+        return cli_path
+
+    # 2) environment variable
+    env_path = os.environ.get("GODOT_CPP_PATH")
+    if env_path:
+        return env_path
+
+    # 3) common local layouts
+    local_candidates = [
+        "godot-cpp",  # inside the cpp/ folder
+        os.path.join("..", "godot-cpp"),  # sibling to cpp/ at repo root
+    ]
+    for candidate in local_candidates:
+        if os.path.isdir(candidate):
+            return candidate
+
+    return "godot-cpp"
+
+
+godot_cpp_path = resolve_godot_cpp_path()
 platform = ARGUMENTS.get("platform", env["PLATFORM"] if "PLATFORM" in env else sys.platform)
 target = ARGUMENTS.get("target", "template_debug")
 bits = ARGUMENTS.get("bits", "64")
@@ -27,7 +51,8 @@ if platform.startswith("win"):
             Exit(1)
 
 if not os.path.isdir(godot_cpp_path):
-    print("godot-cpp checkout not found. Set GODOT_CPP_PATH or pass godot_cpp_path=<path>.")
+    print("godot-cpp checkout not found. Set GODOT_CPP_PATH or pass godot_cpp_path=<path>.\n"
+          "Searched cpp/godot-cpp, ../godot-cpp, and GODOT_CPP_PATH by default.")
     Exit(1)
 
 ref_header = os.path.join(godot_cpp_path, "include", "godot_cpp", "classes", "ref_counted.hpp")

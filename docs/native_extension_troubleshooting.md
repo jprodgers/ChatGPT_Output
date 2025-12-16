@@ -2,7 +2,15 @@
 
 This project **does not bundle** the Godot C++ bindings (`godot-cpp`) by default. You have three options:
 
-1) **Keep `godot-cpp` next to the repo (recommended).** Clone it beside this project so the layout is:
+1) **Keep `godot-cpp` inside `cpp/` (default).** Clone it into `cpp/godot-cpp` so the layout is:
+
+```
+ChatGPT_Output/
+└── cpp/
+    └── godot-cpp/
+```
+
+2) **Keep `godot-cpp` next to the repo (also auto-detected).** If you already have it beside the project, this layout also works without extra flags:
 
 ```
 ChatGPT_Output/
@@ -10,7 +18,7 @@ ChatGPT_Output/
 └── godot-cpp/
 ```
 
-2) **Point to an existing checkout elsewhere.** Set `GODOT_CPP_PATH` before running SCons:
+3) **Point to an existing checkout elsewhere.** Set `GODOT_CPP_PATH` before running SCons:
 
 ```
 PowerShell: $env:GODOT_CPP_PATH = "D:/dev/godot-cpp"
@@ -18,15 +26,14 @@ CMD:        set GODOT_CPP_PATH=D:\dev\godot-cpp
 Bash:       export GODOT_CPP_PATH=$HOME/dev/godot-cpp
 ```
 
-3) **Track `godot-cpp` as a submodule.** If you want it in Git, add it at the repo root so SCons can still find it:
+4) **Track `godot-cpp` as a submodule.** If you want it in Git, add it under `cpp/godot-cpp` or at the repo root. Both are auto-detected by the build script:
 
 ```
-git submodule add https://github.com/godotengine/godot-cpp.git godot-cpp
+git submodule add https://github.com/godotengine/godot-cpp.git cpp/godot-cpp
+# or: git submodule add https://github.com/godotengine/godot-cpp.git godot-cpp
 git submodule update --init --recursive
 git commit -am "Add godot-cpp submodule"
 ```
-
-If you try to add it under `cpp/godot-cpp`, SCons will not see it unless you set `GODOT_CPP_PATH=cpp/godot-cpp`. Keeping it at the root (or next to the repo) matches the default path search.
 
 ## Common build gotchas
 
@@ -37,7 +44,7 @@ If you try to add it under `cpp/godot-cpp`, SCons will not see it unless you set
 
 ## Quick checklist
 
-1. Confirm `godot-cpp` exists where SCons can find it (root `godot-cpp/`, sibling `../godot-cpp/`, or `GODOT_CPP_PATH`).
+1. Confirm `godot-cpp` exists where SCons can find it (`cpp/godot-cpp/`, root `godot-cpp/`, sibling `../godot-cpp/`, or `GODOT_CPP_PATH`).
 2. Build `godot-cpp` with `generate_bindings=yes` for your platform/toolchain.
 3. From `cpp/`, run SCons to build the extension (match the same platform/toolchain you used for `godot-cpp`). Example for MinGW:
 

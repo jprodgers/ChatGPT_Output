@@ -20,9 +20,13 @@ def detect_godot_cpp_path() -> Path | None:
     if env_override:
         return Path(env_override).expanduser().resolve()
 
-    default = ROOT / "godot-cpp"
-    if default.exists():
-        return default.resolve()
+    local = ROOT / "cpp" / "godot-cpp"
+    if local.exists():
+        return local.resolve()
+
+    root_sibling = ROOT / "godot-cpp"
+    if root_sibling.exists():
+        return root_sibling.resolve()
 
     sibling = ROOT.parent / "godot-cpp"
     if sibling.exists():
@@ -86,8 +90,8 @@ def main() -> int:
     godot_cpp = detect_godot_cpp_path()
     if godot_cpp is None:
         print("Could not find godot-cpp. Either:")
-        print("  - Clone godot-cpp next to this repo (../godot-cpp), or")
-        print("  - Clone it inside the repo (godot-cpp), or")
+        print("  - Clone godot-cpp into cpp/godot-cpp, or")
+        print("  - Clone it next to this repo (../godot-cpp), or")
         print("  - Set GODOT_CPP_PATH to point at your existing godot-cpp checkout.")
         return 1
 
