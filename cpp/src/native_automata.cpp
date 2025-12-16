@@ -16,6 +16,8 @@
 #include <algorithm>
 #include <cstdint>
 
+using namespace godot;
+
 namespace {
 
 inline int clamp_axis(int value, int max_value) {
