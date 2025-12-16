@@ -42,14 +42,14 @@ def expected_headers_exist(godot_cpp: Path) -> bool:
     if env_override and Path(env_override).is_dir():
         headers_dir = Path(env_override)
     else:
-        for candidate in [godot_cpp / "godot-headers", godot_cpp / "godot_headers"]:
+        for candidate in [godot_cpp / "godot-headers", godot_cpp / "godot_headers", godot_cpp / "gdextension"]:
             if candidate.is_dir():
                 headers_dir = candidate
                 break
 
     if headers_dir is None:
-        print("Missing godot-headers inside godot-cpp (expected godot-headers/ or godot_headers/).")
-        print("Pull the repo with submodules or download a bundle that includes the headers, or set GODOT_HEADERS to point at a standalone godot-headers checkout.")
+        print("Missing godot-headers inside godot-cpp (expected godot-headers/, godot_headers/, or gdextension/).")
+        print("Pull the repo with submodules or download a bundle that includes the headers, or set GODOT_HEADERS to point at a standalone godot-headers checkout or the gdextension folder that contains gdextension_interface.h.")
         return False
 
     # Require one core header that ships with the repo to ensure the checkout exists.

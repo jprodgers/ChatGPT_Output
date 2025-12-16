@@ -96,6 +96,7 @@ else:
     for candidate in [
         os.path.join(godot_cpp_path, "godot-headers"),
         os.path.join(godot_cpp_path, "godot_headers"),
+        os.path.join(godot_cpp_path, "gdextension"),
     ]:
         if os.path.isdir(candidate):
             headers_path = candidate
@@ -108,7 +109,9 @@ if not headers_path:
     )
     Exit(1)
 
-env.Append(CPPPATH=include_paths + [os.path.join(headers_path, "godot")])
+# Accept both legacy godot-headers/godot layout and the new gdextension layout
+header_candidates = [headers_path, os.path.join(headers_path, "godot"), os.path.join(headers_path, "gdextension")]
+env.Append(CPPPATH=include_paths + header_candidates)
 
 # Adjust C++ standard flag per toolchain
 if platform.startswith("win") and not use_mingw:
