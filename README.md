@@ -54,4 +54,4 @@ You can experiment with extreme update rates (e.g., 0.001 or 100.0 steps/sec) to
 ## Performance notes
 - The renderer and automata steppers already offload work to Godot's worker threads where possible to stay smooth on the main thread.
 - For deeper native optimizations or larger grids, see [`docs/performance.md`](docs/performance.md) for guidance on when to port hot loops to C++ (GDExtension/custom module) and what that means for desktop vs. web targets.
-- A GDExtension stub for Game of Life and the falling sand pile lives in [`cpp/`](cpp/README.md); when built and present in `bin/`, the project will automatically use the C++ steppers with a GDScript fallback if the library is missing.
+- A GDExtension stub for Game of Life and the falling sand pile lives in [`cpp/`](cpp/README.md); when built and present in `bin/`, the project will automatically use the C++ steppers with a GDScript fallback if the library is missing. See [`docs/native_extension_troubleshooting.md`](docs/native_extension_troubleshooting.md) for help wiring up `godot-cpp` and verifying the binary is in the right place.

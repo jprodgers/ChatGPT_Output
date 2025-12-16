@@ -1,4 +1,5 @@
 import os
+import shutil
 import sys
 
 use_mingw = ARGUMENTS.get("use_mingw", "no") == "yes"
@@ -10,8 +11,41 @@ platform = ARGUMENTS.get("platform", env["PLATFORM"] if "PLATFORM" in env else s
 target = ARGUMENTS.get("target", "template_debug")
 bits = ARGUMENTS.get("bits", "64")
 
+if platform.startswith("win"):
+    if use_mingw:
+        # MinGW builds expect `g++` on PATH; give a clearer error when it is missing.
+        if not env.Detect("g++") and not shutil.which("g++"):
+            print("MinGW g++ compiler not found. Install MinGW-w64 and ensure its bin/ folder is on PATH,\n"
+                  "or run SCons from an MSYS2 MinGW shell so g++ is available.")
+            Exit(1)
+    else:
+        # SCons defaults to MSVC on Windows. Give a clearer error when `cl.exe` is not on PATH
+        # so users know to either run from a Developer Command Prompt or opt into MinGW.
+        if not env.Detect("cl") and not shutil.which("cl"):
+            print("Microsoft Visual C++ compiler (cl.exe) not found. Run scons from a Visual Studio\n"
+                  "Developer Command Prompt or pass use_mingw=yes to build with MinGW.")
+            Exit(1)
+
 if not os.path.isdir(godot_cpp_path):
     print("godot-cpp checkout not found. Set GODOT_CPP_PATH or pass godot_cpp_path=<path>.")
+    Exit(1)
+
+ref_header = os.path.join(godot_cpp_path, "include", "godot_cpp", "classes", "ref_counted.hpp")
+if not os.path.isfile(ref_header):
+    print(
+        "godot-cpp headers are missing. Ensure GODOT_CPP_PATH points to a cloned godot-cpp checkout "+
+        "with the expected layout (include/godot_cpp/classes/ref_counted.hpp).\n"
+        "Clone the branch that matches your Godot version (for example --branch 4.2) and try again."
+    )
+    Exit(1)
+
+generated_header = os.path.join(godot_cpp_path, "include", "gen", "godot_cpp", "classes", "global_constants.hpp")
+if not os.path.isfile(generated_header):
+    print(
+        "godot-cpp generated headers are missing. Run scons inside your godot-cpp checkout first, for example:\n"
+        "  scons platform=windows target=template_release generate_bindings=yes -C godot-cpp\n"
+        "Use the same platform/target/toolchain flags here and in your godot-cpp build."
+    )
     Exit(1)
 
 env.Append(CPPPATH=[
