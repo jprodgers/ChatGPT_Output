@@ -255,6 +255,7 @@ func _ready() -> void:
 	initialize_native_automata()
 	set_sand_palette_by_name(sand_palette_name)
 	build_ui()
+	help_panel.visible = true
 	call_deferred("initialize_grid")
 
 func initialize_native_automata() -> void:
