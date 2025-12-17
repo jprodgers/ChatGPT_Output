@@ -113,7 +113,7 @@ public:
             }
         }
 
-        bool changed = false;
+        bool changed = true;
         switch (edge_mode) {
             case 0: { // EDGE_WRAP
                 for (int y = 0; y < size.y; y++) {
