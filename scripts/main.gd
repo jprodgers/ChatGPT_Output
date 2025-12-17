@@ -113,6 +113,9 @@ var render_task_ids: Array[int] = []
 var render_task_result: Dictionary = {}
 var render_task_mutex: Mutex = Mutex.new()
 
+var sim_workers: Dictionary = {}
+const SIM_KEYS: Array[String] = ["totalistic", "wolfram", "ants", "turmites", "sand"]
+
 var native_automata: RefCounted = null
 
 var step_requested: bool = false
@@ -212,6 +215,7 @@ func _ready() -> void:
 	if grid_shader != null:
 		grid_material.shader = grid_shader
 		grid_view.material = grid_material
+	initialize_sim_workers()
 	initialize_native_automata()
 	set_sand_palette_by_name(sand_palette_name)
 	build_ui()
@@ -248,6 +252,28 @@ func initialize_native_automata() -> void:
 	else:
 		print("[NativeAutomata] Native extension not found, using GDScript")
 
+func initialize_sim_workers() -> void:
+	if not sim_workers.is_empty():
+		return
+	for key in SIM_KEYS:
+		var sem: Semaphore = Semaphore.new()
+		var mutex: Mutex = Mutex.new()
+		var data: Dictionary = {
+			"key": key,
+			"semaphore": sem,
+			"mutex": mutex,
+			"request": {},
+			"result": {},
+			"busy": false,
+		}
+		var t: Thread = Thread.new()
+		var err: int = t.start(Callable(self, "_simulation_worker").bind(data))
+		if err != OK:
+			push_warning("Failed to start simulation worker %s (error %d)" % [key, err])
+			continue
+		data["thread"] = t
+		sim_workers[key] = data
+
 func set_info_label_text(text: String) -> void:
 	if info_label == null:
 		return
@@ -256,8 +282,91 @@ func set_info_label_text(text: String) -> void:
 		suffix = " (native C++ active)"
 	info_label.text = text + suffix
 
+func _simulation_worker(data: Dictionary) -> void:
+	var sem: Semaphore = data.get("semaphore")
+	var mutex: Mutex = data.get("mutex")
+	if sem == null or mutex == null:
+		return
+	while true:
+		sem.wait()
+		mutex.lock()
+		var request: Dictionary = data.get("request", {})
+		data["request"] = {}
+		mutex.unlock()
+		if request.is_empty():
+			continue
+		if request.get("stop", false):
+			break
+		var fn: Callable = request.get("fn", Callable())
+		var args: Array = request.get("args", [])
+		var result: Dictionary = {}
+		if fn.is_valid():
+			result = fn.callv(args)
+		mutex.lock()
+		data["result"] = result
+		data["busy"] = false
+		mutex.unlock()
+
 func request_render() -> void:
 	render_pending = true
+
+func _enqueue_sim_task(key: String, fn: Callable, args: Array) -> bool:
+	var data: Dictionary = sim_workers.get(key, {})
+	if data.is_empty():
+		return false
+	var mutex: Mutex = data.get("mutex", null)
+	var sem: Semaphore = data.get("semaphore", null)
+	if mutex == null or sem == null:
+		return false
+	mutex.lock()
+	var busy: bool = data.get("busy", false)
+	if busy:
+		mutex.unlock()
+		return false
+	data["request"] = {"fn": fn, "args": args}
+	data["busy"] = true
+	data["result"] = {}
+	mutex.unlock()
+	sem.post()
+	return true
+
+func _take_sim_result(key: String) -> Dictionary:
+	var data: Dictionary = sim_workers.get(key, {})
+	if data.is_empty():
+		return {}
+	var mutex: Mutex = data.get("mutex", null)
+	if mutex == null:
+		return {}
+	mutex.lock()
+	var result: Dictionary = data.get("result", {})
+	data["result"] = {}
+	var busy: bool = data.get("busy", false)
+	mutex.unlock()
+	if busy:
+		return {}
+	return result
+
+func _stop_sim_workers() -> void:
+	for key in sim_workers.keys():
+		var data: Dictionary = sim_workers[key]
+		var sem: Semaphore = data.get("semaphore", null)
+		var mutex: Mutex = data.get("mutex", null)
+		if sem == null or mutex == null:
+			continue
+		mutex.lock()
+		data["request"] = {"stop": true}
+		mutex.unlock()
+		sem.post()
+		if data.has("thread") and data["thread"] is Thread:
+			(data["thread"] as Thread).wait_to_finish()
+	sim_workers.clear()
+
+func _any_sim_busy() -> bool:
+	for key in sim_workers.keys():
+		var data: Dictionary = sim_workers[key]
+		if data.get("busy", false):
+			return true
+	return false
 
 func build_ui() -> void:
 	var root: HBoxContainer = HBoxContainer.new()
@@ -1266,6 +1375,10 @@ func step_wolfram(allow_wrap: bool = true) -> void:
 		if native_result.get("changed", true):
 			request_render()
 		return
+	if not _any_sim_busy():
+		var args: Array = [grid.duplicate(true), grid_size, wolfram_rule, wolfram_row, edge_mode, allow_wrap]
+		if _enqueue_sim_task("wolfram", Callable(self, "_compute_wolfram"), args):
+			return
 	if grid_size.y <= 0:
 		return
 	if allow_wrap and grid_size.y > 0:
@@ -1314,6 +1427,10 @@ func step_ants() -> void:
 		if native_result.get("changed", true):
 			request_render()
 		return
+	if not _any_sim_busy():
+		var args: Array = [grid.duplicate(true), grid_size, edge_mode, ants.duplicate(true), ant_directions.duplicate(true), ant_colors.duplicate(true)]
+		if _enqueue_sim_task("ants", Callable(self, "_compute_ants"), args):
+			return
 	var remove_indices: Array[int] = []
 	for i in range(ants.size()):
 		var pos: Vector2i = ants[i]
@@ -1369,6 +1486,10 @@ func step_totalistic(birth: Array[int], survive: Array[int]) -> void:
 			grid = native_result["grid"]
 			if native_result.get("changed", true):
 				request_render()
+			return
+	if not _any_sim_busy():
+		var args: Array = [grid.duplicate(true), grid_size, birth.duplicate(true), survive.duplicate(true), edge_mode]
+		if _enqueue_sim_task("totalistic", Callable(self, "_compute_totalistic"), args):
 			return
 
 	var next_state: PackedByteArray = PackedByteArray()
@@ -1458,6 +1579,10 @@ func step_turmites() -> void:
 		if native_result.get("changed", true):
 			request_render()
 		return
+	if not _any_sim_busy():
+		var args: Array = [grid.duplicate(true), grid_size, edge_mode, turmites.duplicate(true), turmite_directions.duplicate(true), turmite_colors.duplicate(true), turmite_rule]
+		if _enqueue_sim_task("turmites", Callable(self, "_compute_turmites"), args):
+			return
 	var remove_indices: Array[int] = []
 	var rule_upper: String = turmite_rule.to_upper()
 	if rule_upper.length() < 2:
@@ -1535,6 +1660,10 @@ func step_sand() -> void:
 			sand_grid = native_result["grid"]
 			if native_result.get("changed", false):
 				request_render()
+			return
+	if not _any_sim_busy():
+		var args: Array = [sand_grid.duplicate(true), grid_size, edge_mode]
+		if _enqueue_sim_task("sand", Callable(self, "_compute_sand"), args):
 			return
 
 	var updates: Array[Vector2i] = []
@@ -1709,6 +1838,54 @@ func update_image_texture(tex: ImageTexture, img: Image) -> ImageTexture:
 		tex.update(img)
 	return tex
 
+func _apply_sim_results() -> bool:
+	var changed: bool = false
+	var wolfram_result: Dictionary = _take_sim_result("wolfram")
+	if not wolfram_result.is_empty():
+		if wolfram_result.has("grid") and wolfram_result["grid"] is PackedByteArray:
+			grid = wolfram_result["grid"]
+		if wolfram_result.has("row"):
+			wolfram_row = int(wolfram_result.get("row", wolfram_row))
+		if wolfram_result.get("changed", true):
+			changed = true
+	var totalistic_result: Dictionary = _take_sim_result("totalistic")
+	if not totalistic_result.is_empty():
+		if totalistic_result.has("grid") and totalistic_result["grid"] is PackedByteArray:
+			grid = totalistic_result["grid"]
+		if totalistic_result.get("changed", true):
+			changed = true
+	var ants_result: Dictionary = _take_sim_result("ants")
+	if not ants_result.is_empty():
+		if ants_result.has("grid") and ants_result["grid"] is PackedByteArray:
+			grid = ants_result["grid"]
+		if ants_result.has("ants") and ants_result["ants"] is Array:
+			ants = ants_result["ants"]
+		if ants_result.has("directions") and ants_result["directions"] is Array:
+			ant_directions = ants_result["directions"]
+		if ants_result.has("colors") and ants_result["colors"] is Array:
+			ant_colors = ants_result["colors"]
+		if ants_result.get("changed", true):
+			changed = true
+	var turmite_result: Dictionary = _take_sim_result("turmites")
+	if not turmite_result.is_empty():
+		if turmite_result.has("grid") and turmite_result["grid"] is PackedByteArray:
+			grid = turmite_result["grid"]
+		if turmite_result.has("ants") and turmite_result["ants"] is Array:
+			turmites = turmite_result["ants"]
+		if turmite_result.has("directions") and turmite_result["directions"] is Array:
+			turmite_directions = turmite_result["directions"]
+		if turmite_result.has("colors") and turmite_result["colors"] is Array:
+			turmite_colors = turmite_result["colors"]
+		if turmite_result.get("changed", true):
+			changed = true
+	var sand_result: Dictionary = _take_sim_result("sand")
+	if not sand_result.is_empty():
+		if sand_result.has("grid") and sand_result["grid"] is PackedInt32Array:
+			sand_grid = sand_result["grid"]
+		if sand_result.get("changed", false):
+			changed = true
+	return changed
+
 func layout_grid_view(tex_size: Vector2i) -> void:
 	if view_container == null:
 		return
@@ -1794,8 +1971,220 @@ func draw_grid_lines_on_image(img: Image) -> void:
 			var py: int = start_y + t
 			if py >= height:
 				continue
-			for px in range(width):
-				img.set_pixel(px, py, grid_line_color)
+		for px in range(width):
+			img.set_pixel(px, py, grid_line_color)
+
+static func _compute_totalistic(grid_in: PackedByteArray, grid_size_in: Vector2i, birth: Array, survive: Array, edge_mode_in: int) -> Dictionary:
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+		return {"grid": grid_in, "changed": false}
+	var next_state: PackedByteArray = PackedByteArray()
+	next_state.resize(grid_in.size())
+	var birth_set: Array = birth
+	var survive_set: Array = survive
+	var changed: bool = false
+	for y in range(grid_size_in.y):
+		for x in range(grid_size_in.x):
+			var alive: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x, y)
+			var neighbors: int = 0
+			for dy in range(-1, 2):
+				for dx in range(-1, 2):
+					if dx == 0 and dy == 0:
+						continue
+					neighbors += _sample_cell(grid_in, grid_size_in, edge_mode_in, x + dx, y + dy)
+			var new_val: int = 0
+			if alive == 1:
+				if survive_set.has(neighbors):
+					new_val = 1
+			else:
+				if birth_set.has(neighbors):
+					new_val = 1
+			var idx: int = y * grid_size_in.x + x
+			next_state[idx] = new_val
+			if not changed and new_val != grid_in[idx]:
+				changed = true
+	return {"grid": next_state, "changed": changed}
+
+static func _sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, x: int, y: int) -> int:
+	if x >= 0 and x < grid_size_in.x and y >= 0 and y < grid_size_in.y:
+		return grid_in[y * grid_size_in.x + x]
+	match edge_mode_in:
+		EDGE_WRAP:
+			var nx: int = posmod(x, grid_size_in.x)
+			var ny: int = posmod(y, grid_size_in.y)
+			return grid_in[ny * grid_size_in.x + nx]
+		EDGE_BOUNCE:
+			var bounce_x: int = x
+			var bounce_y: int = y
+			if bounce_x < 0:
+				bounce_x = -bounce_x - 1
+			elif bounce_x >= grid_size_in.x:
+				bounce_x = grid_size_in.x - (bounce_x - grid_size_in.x) - 1
+			if bounce_y < 0:
+				bounce_y = -bounce_y - 1
+			elif bounce_y >= grid_size_in.y:
+				bounce_y = grid_size_in.y - (bounce_y - grid_size_in.y) - 1
+			bounce_x = clamp(bounce_x, 0, grid_size_in.x - 1)
+			bounce_y = clamp(bounce_y, 0, grid_size_in.y - 1)
+			return grid_in[bounce_y * grid_size_in.x + bounce_x]
+		_:
+			return 0
+
+static func _compute_wolfram(grid_in: PackedByteArray, grid_size_in: Vector2i, rule: int, row: int, edge_mode_in: int, allow_wrap: bool) -> Dictionary:
+	if grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+		return {"grid": grid_in, "row": row, "changed": false}
+	var wolfram_row_local: int = row
+	if allow_wrap and grid_size_in.y > 0:
+		wolfram_row_local = wolfram_row_local % grid_size_in.y
+	if wolfram_row_local >= grid_size_in.y and not allow_wrap:
+		return {"grid": grid_in, "row": wolfram_row_local, "changed": false}
+	var next_state: PackedByteArray = grid_in
+	var source_row: int = 0
+	if wolfram_row_local <= 0:
+		source_row = grid_size_in.y - 1 if allow_wrap else 0
+	else:
+		source_row = wolfram_row_local - 1
+	var changed: bool = true
+	for x in range(grid_size_in.x):
+		var left: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x - 1, source_row)
+		var center: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x, source_row)
+		var right: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x + 1, source_row)
+		var key: int = (left << 2) | (center << 1) | right
+		var state: int = (rule >> key) & 1
+		next_state[wolfram_row_local * grid_size_in.x + x] = state
+	var next_row: int = allow_wrap ? (wolfram_row_local + 1) % grid_size_in.y : wolfram_row_local + 1
+	return {"grid": next_state, "row": next_row, "changed": changed}
+
+static func _compute_ants(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array) -> Dictionary:
+	var count: int = min(ants_in.size(), dirs_in.size())
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y or count <= 0:
+		return {"grid": grid_in, "ants": ants_in, "directions": dirs_in, "colors": colors_in, "changed": false}
+	var next_grid: PackedByteArray = grid_in
+	var next_ants: Array = []
+	var next_dirs: Array = []
+	var next_colors: Array = []
+	var changed: bool = false
+	for i in range(count):
+		var pos: Vector2i = ants_in[i]
+		if pos.x < 0 or pos.x >= grid_size_in.x or pos.y < 0 or pos.y >= grid_size_in.y:
+			changed = true
+			continue
+		var dir: int = int(dirs_in[i]) % DIRS.size()
+		if dir < 0:
+			dir += DIRS.size()
+		var idx: int = pos.y * grid_size_in.x + pos.x
+		var current: int = next_grid[idx]
+		if current == 1:
+			dir = (dir + 1) % DIRS.size()
+			next_grid[idx] = 0
+		else:
+			dir = (dir + DIRS.size() - 1) % DIRS.size()
+			next_grid[idx] = 1
+		var next: Vector2i = pos + DIRS[dir]
+		match edge_mode_in:
+			EDGE_WRAP:
+				next = Vector2i(posmod(next.x, grid_size_in.x), posmod(next.y, grid_size_in.y))
+			EDGE_BOUNCE:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					dir = (dir + 2) % DIRS.size()
+					next = pos + DIRS[dir]
+					next.x = clamp(next.x, 0, grid_size_in.x - 1)
+					next.y = clamp(next.y, 0, grid_size_in.y - 1)
+			EDGE_FALLOFF:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					changed = true
+					continue
+		if not changed and (pos != next or dir != int(dirs_in[i]) or next_grid[idx] != current):
+			changed = true
+		next_ants.append(next)
+		next_dirs.append(dir)
+		if i < colors_in.size():
+			next_colors.append(colors_in[i])
+		else:
+			next_colors.append(Color.WHITE)
+	return {"grid": next_grid, "ants": next_ants, "directions": next_dirs, "colors": next_colors, "changed": changed}
+
+static func _compute_turmites(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array, rule: String) -> Dictionary:
+	var count: int = min(ants_in.size(), dirs_in.size())
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y or count <= 0:
+		return {"grid": grid_in, "ants": ants_in, "directions": dirs_in, "colors": colors_in, "changed": false}
+	var next_grid: PackedByteArray = grid_in
+	var rule_upper: String = rule.to_upper()
+	if rule_upper.length() < 2:
+		rule_upper = "RL"
+	var next_ants: Array = []
+	var next_dirs: Array = []
+	var next_colors: Array = []
+	var changed: bool = false
+	for i in range(count):
+		var pos: Vector2i = ants_in[i]
+		if pos.x < 0 or pos.x >= grid_size_in.x or pos.y < 0 or pos.y >= grid_size_in.y:
+			changed = true
+			continue
+		var dir: int = int(dirs_in[i]) % DIRS.size()
+		if dir < 0:
+			dir += DIRS.size()
+		var idx: int = pos.y * grid_size_in.x + pos.x
+		var current: int = next_grid[idx]
+		var rule_idx: int = clamp(current, 0, rule_upper.length() - 1)
+		var turn: String = rule_upper[rule_idx]
+		if turn == "R":
+			dir = (dir + 1) % DIRS.size()
+		else:
+			dir = (dir + DIRS.size() - 1) % DIRS.size()
+		next_grid[idx] = 1 - current
+		var next: Vector2i = pos + DIRS[dir]
+		match edge_mode_in:
+			EDGE_WRAP:
+				next = Vector2i(posmod(next.x, grid_size_in.x), posmod(next.y, grid_size_in.y))
+			EDGE_BOUNCE:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					dir = (dir + 2) % DIRS.size()
+					next = pos + DIRS[dir]
+					next.x = clamp(next.x, 0, grid_size_in.x - 1)
+					next.y = clamp(next.y, 0, grid_size_in.y - 1)
+			EDGE_FALLOFF:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					changed = true
+					continue
+		if not changed and (pos != next or dir != int(dirs_in[i]) or next_grid[idx] != current):
+			changed = true
+		next_ants.append(next)
+		next_dirs.append(dir)
+		if i < colors_in.size():
+			next_colors.append(colors_in[i])
+		else:
+			next_colors.append(Color.WHITE)
+	return {"grid": next_grid, "ants": next_ants, "directions": next_dirs, "colors": next_colors, "changed": changed}
+
+static func _compute_sand(grid_in: PackedInt32Array, grid_size_in: Vector2i, edge_mode_in: int) -> Dictionary:
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+		return {"grid": grid_in, "changed": false}
+	var updates: Array[Vector2i] = []
+	for y in range(grid_size_in.y):
+		for x in range(grid_size_in.x):
+			var idx: int = y * grid_size_in.x + x
+			if grid_in[idx] >= 4:
+				updates.append(Vector2i(x, y))
+	if updates.is_empty():
+		return {"grid": grid_in, "changed": false}
+	var next: PackedInt32Array = grid_in
+	for pos in updates:
+		var idx: int = pos.y * grid_size_in.x + pos.x
+		next[idx] -= 4
+		for dir in DIRS:
+			var npos: Vector2i = pos + dir
+			match edge_mode_in:
+				EDGE_WRAP:
+					npos = Vector2i(posmod(npos.x, grid_size_in.x), posmod(npos.y, grid_size_in.y))
+				EDGE_BOUNCE:
+					npos.x = clamp(npos.x, 0, grid_size_in.x - 1)
+					npos.y = clamp(npos.y, 0, grid_size_in.y - 1)
+				EDGE_FALLOFF:
+					if npos.x < 0 or npos.x >= grid_size_in.x or npos.y < 0 or npos.y >= grid_size_in.y:
+						continue
+			var nidx: int = npos.y * grid_size_in.x + npos.x
+			next[nidx] += 1
+	return {"grid": next, "changed": true}
 
 func resolve_export_path() -> String:
 	var pattern: String = export_pattern
@@ -1827,6 +2216,7 @@ func resolve_web_export_filename(path: String) -> String:
 func _process(delta: float) -> void:
 	if not ui_ready:
 		return
+	var applied_from_threads: bool = _apply_sim_results()
 
 	var playback_active: bool = not is_paused or step_requested
 	var state_changed: bool = false
@@ -1864,7 +2254,7 @@ func _process(delta: float) -> void:
 			state_changed = process_sand(scaled_delta) or state_changed
 		step_requested = false
 
-	if state_changed:
+	if state_changed or applied_from_threads:
 		request_render()
 
 	var completed_count: int = 0
@@ -1947,3 +2337,5 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED:
 		update_grid_size()
 		request_render()
+	elif what == NOTIFICATION_PREDELETE or what == NOTIFICATION_WM_CLOSE_REQUEST:
+		_stop_sim_workers()
