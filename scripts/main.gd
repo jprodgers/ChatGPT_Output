@@ -218,6 +218,39 @@ func register_help(control: Control, text: String) -> void:
 				show_help(text)
 		)
 
+func enforce_integer_spin(spin: SpinBox, min_value: int = 0) -> void:
+	spin.step = 1.0
+	spin.rounded = true
+	spin.min_value = float(min_value)
+	spin.allow_lesser = false
+	spin.allow_greater = true
+	var edit: LineEdit = spin.get_line_edit()
+	if edit == null:
+		return
+	edit.text = str(int(max(min_value, spin.value)))
+	var cleaning: bool = false
+	edit.text_changed.connect(func(text: String) -> void:
+		if cleaning:
+			return
+		cleaning = true
+		var digits: String = ""
+		for ch in text:
+			if ch.is_digit():
+				digits += ch
+		if digits == "":
+			digits = str(min_value)
+		while digits.length() > 1 and digits.begins_with("0"):
+			digits = digits.substr(1, digits.length() - 1)
+		var value: int = int(digits)
+		if value < min_value:
+			value = min_value
+			digits = str(value)
+		edit.text = digits
+		edit.caret_column = edit.text.length()
+		spin.value = float(value)
+		cleaning = false
+	)
+
 func is_high_density_device() -> bool:
 	var os_name: String = OS.get_name()
 	if os_name == "Android" or os_name == "iOS":
@@ -588,13 +621,11 @@ func build_grid_controls() -> VBoxContainer:
 	var global_rate_spin: SpinBox = SpinBox.new()
 	global_rate_spin.min_value = 0.0
 	global_rate_spin.max_value = 5000.0
-	global_rate_spin.step = 1.0
-	global_rate_spin.rounded = false
-	global_rate_spin.allow_greater = true
+	enforce_integer_spin(global_rate_spin, 0)
 	global_rate_spin.value = global_rate
 	global_rate_spin.value_changed.connect(func(v: float) -> void: global_rate = max(0.0, v))
 	global_rate_row.add_child(global_rate_spin)
-	register_help(global_rate_spin, "Set the global updates per second multiplier. Arrows now change whole numbers, but you can still type precise decimals.")
+	register_help(global_rate_spin, "Set the global updates per second multiplier using whole numbers.")
 	box.add_child(global_rate_row)
 
 	var edge_row: HBoxContainer = HBoxContainer.new()
@@ -787,13 +818,12 @@ func build_wolfram_controls() -> VBoxContainer:
 	rate_row.add_child(rate_label)
 	wolfram_rate_spin.min_value = 0.0
 	wolfram_rate_spin.max_value = 200.0
-	wolfram_rate_spin.step = 1.0
-	wolfram_rate_spin.rounded = false
+	enforce_integer_spin(wolfram_rate_spin, 0)
 	wolfram_rate_spin.value = wolfram_rate
 	wolfram_rate_spin.allow_greater = true
 	wolfram_rate_spin.value_changed.connect(func(v: float) -> void: wolfram_rate = max(0.0, v))
 	rate_row.add_child(wolfram_rate_spin)
-	register_help(wolfram_rate_spin, "Set how many Wolfram rows to generate each global update. Use arrows for whole numbers or type precise decimals.")
+	register_help(wolfram_rate_spin, "Set how many Wolfram rows to generate each global update (whole numbers only).")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -869,13 +899,12 @@ func build_ant_controls() -> VBoxContainer:
 	rate_row.add_child(rate_label)
 	ant_rate_spin.min_value = 0.0
 	ant_rate_spin.max_value = 500.0
-	ant_rate_spin.step = 1.0
-	ant_rate_spin.rounded = false
+	enforce_integer_spin(ant_rate_spin, 0)
 	ant_rate_spin.value = ant_rate
 	ant_rate_spin.allow_greater = true
 	ant_rate_spin.value_changed.connect(func(v: float) -> void: ant_rate = max(0.0, v))
 	rate_row.add_child(ant_rate_spin)
-	register_help(ant_rate_spin, "Steps each ant takes per global update. Arrows change whole steps; type decimals for finer control.")
+	register_help(ant_rate_spin, "Steps each ant takes per global update (whole numbers only).")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -912,13 +941,12 @@ func build_gol_controls() -> VBoxContainer:
 	rate_row.add_child(rate_label)
 	gol_rate_spin.min_value = 0.0
 	gol_rate_spin.max_value = 120.0
-	gol_rate_spin.step = 1.0
-	gol_rate_spin.rounded = false
+	enforce_integer_spin(gol_rate_spin, 0)
 	gol_rate_spin.value = gol_rate
 	gol_rate_spin.allow_greater = true
 	gol_rate_spin.value_changed.connect(func(v: float) -> void: gol_rate = max(0.0, v))
 	rate_row.add_child(gol_rate_spin)
-	register_help(gol_rate_spin, "Number of Game of Life steps performed per global update. Arrows change whole steps, decimals allowed by typing.")
+	register_help(gol_rate_spin, "Number of Game of Life steps performed per global update (whole numbers only).")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -947,13 +975,12 @@ func build_day_night_controls() -> VBoxContainer:
 	rate_row.add_child(rate_label)
 	day_night_rate_spin.min_value = 0.0
 	day_night_rate_spin.max_value = 120.0
-	day_night_rate_spin.step = 1.0
-	day_night_rate_spin.rounded = false
+	enforce_integer_spin(day_night_rate_spin, 0)
 	day_night_rate_spin.value = day_night_rate
 	day_night_rate_spin.allow_greater = true
 	day_night_rate_spin.value_changed.connect(func(v: float) -> void: day_night_rate = max(0.0, v))
 	rate_row.add_child(day_night_rate_spin)
-	register_help(day_night_rate_spin, "Steps run for the Day & Night rules per global update. Arrows change whole steps; decimals can be typed.")
+	register_help(day_night_rate_spin, "Steps run for the Day & Night rules per global update (whole numbers only).")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -982,13 +1009,12 @@ func build_seeds_controls() -> VBoxContainer:
 	rate_row.add_child(rate_label)
 	seeds_rate_spin.min_value = 0.0
 	seeds_rate_spin.max_value = 120.0
-	seeds_rate_spin.step = 1.0
-	seeds_rate_spin.rounded = false
+	enforce_integer_spin(seeds_rate_spin, 0)
 	seeds_rate_spin.value = seeds_rate
 	seeds_rate_spin.allow_greater = true
 	seeds_rate_spin.value_changed.connect(func(v: float) -> void: seeds_rate = max(0.0, v))
 	rate_row.add_child(seeds_rate_spin)
-	register_help(seeds_rate_spin, "Steps per global update for the Seeds automaton. Arrow keys change whole steps; type decimals for finer control.")
+	register_help(seeds_rate_spin, "Steps per global update for the Seeds automaton (whole numbers only).")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -1089,13 +1115,12 @@ func build_sand_controls() -> VBoxContainer:
 	rate_row.add_child(rate_label)
 	sand_rate_spin.min_value = 0.0
 	sand_rate_spin.max_value = 240.0
-	sand_rate_spin.step = 1.0
-	sand_rate_spin.rounded = false
+	enforce_integer_spin(sand_rate_spin, 0)
 	sand_rate_spin.allow_greater = true
 	sand_rate_spin.value = sand_rate
 	sand_rate_spin.value_changed.connect(func(v: float) -> void: sand_rate = max(0.0, v))
 	rate_row.add_child(sand_rate_spin)
-	register_help(sand_rate_spin, "Number of sandpile relaxation steps per global update. Arrows change whole steps; type decimals if needed.")
+	register_help(sand_rate_spin, "Number of sandpile relaxation steps per global update (whole numbers only).")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -1178,13 +1203,12 @@ func build_turmite_controls() -> VBoxContainer:
 	rate_row.add_child(rate_label)
 	turmite_rate_spin.min_value = 0.0
 	turmite_rate_spin.max_value = 500.0
-	turmite_rate_spin.step = 1.0
-	turmite_rate_spin.rounded = false
+	enforce_integer_spin(turmite_rate_spin, 0)
 	turmite_rate_spin.value = turmite_rate
 	turmite_rate_spin.allow_greater = true
 	turmite_rate_spin.value_changed.connect(func(v: float) -> void: turmite_rate = max(0.0, v))
 	rate_row.add_child(turmite_rate_spin)
-	register_help(turmite_rate_spin, "Steps per update for every turmite. Arrows adjust by whole steps; type decimals for fine tuning.")
+	register_help(turmite_rate_spin, "Steps per update for every turmite (whole numbers only).")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
