@@ -134,6 +134,7 @@ var overlay_texture: ImageTexture = ImageTexture.new()
 @onready var grid_view: TextureRect = TextureRect.new()
 @onready var info_label: Label = Label.new()
 @onready var view_container: Panel = Panel.new()
+@onready var sidebar_ref: PanelContainer = PanelContainer.new()
 @onready var play_button: Button = Button.new()
 @onready var help_panel: PanelContainer = PanelContainer.new()
 @onready var help_label: RichTextLabel = RichTextLabel.new()
@@ -261,6 +262,24 @@ func is_high_density_device() -> bool:
 		return true
 	var size: Vector2i = DisplayServer.screen_get_size()
 	return max(size.x, size.y) >= 2560
+
+func update_sidebar_scale() -> void:
+	if sidebar_ref == null:
+		return
+	if not auto_menu_scale:
+		sidebar_ref.scale = Vector2.ONE
+		return
+	var viewport_size: Vector2 = Vector2(get_viewport_rect().size)
+	if viewport_size.x <= 0.0:
+		return
+	var target_ratio: float = 0.2
+	var base_width: float = 260.0
+	var desired_width: float = viewport_size.x * target_ratio
+	var computed_scale: float = desired_width / base_width
+	if is_high_density_device():
+		computed_scale = max(computed_scale, high_density_menu_scale)
+	var clamped: float = clamp(computed_scale, 0.75, 3.0)
+	sidebar_ref.scale = Vector2(clamped, clamped)
 
 func update_grid_line_controls() -> void:
 	grid_line_thickness_spin.editable = grid_lines_enabled
@@ -439,24 +458,36 @@ func _any_sim_busy() -> bool:
 			return true
 	return false
 
+func _sim_busy(key: String) -> bool:
+	var data: Dictionary = sim_workers.get(key, {})
+	if data.is_empty():
+		return false
+	return data.get("busy", false)
+
+func _grid_sim_busy() -> bool:
+	for key in sim_workers.keys():
+		if key == "sand":
+			continue
+		var data: Dictionary = sim_workers[key]
+		if data.get("busy", false):
+			return true
+	return false
+
 func build_ui() -> void:
 	var root: HBoxContainer = HBoxContainer.new()
 	root.set_anchors_preset(Control.PRESET_FULL_RECT)
 	root.add_theme_constant_override("separation", 8)
 	add_child(root)
 
-	var sidebar: PanelContainer = PanelContainer.new()
-	sidebar.custom_minimum_size = Vector2(260, 0)
-	sidebar.size_flags_horizontal = Control.SIZE_FILL
-	sidebar.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	if auto_menu_scale and is_high_density_device():
-		var menu_scale: float = max(0.5, high_density_menu_scale)
-		sidebar.scale = Vector2(menu_scale, menu_scale)
-	root.add_child(sidebar)
+	sidebar_ref = PanelContainer.new()
+	sidebar_ref.custom_minimum_size = Vector2(260, 0)
+	sidebar_ref.size_flags_horizontal = Control.SIZE_FILL
+	sidebar_ref.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	root.add_child(sidebar_ref)
 
 	var sidebar_layout: VBoxContainer = VBoxContainer.new()
 	sidebar_layout.add_theme_constant_override("separation", 10)
-	sidebar.add_child(sidebar_layout)
+	sidebar_ref.add_child(sidebar_layout)
 
 	var title: Label = Label.new()
 	title.text = "Shader-friendly Cellular Automata"
@@ -565,6 +596,7 @@ func build_ui() -> void:
 	update_grid_line_controls()
 
 	ui_ready = true
+	update_sidebar_scale()
 
 func initialize_grid() -> void:
 	update_grid_size()
@@ -1520,7 +1552,7 @@ func step_wolfram(allow_wrap: bool = true) -> void:
 		if native_result.get("changed", true):
 			request_render()
 		return
-	if not _any_sim_busy():
+	if not _grid_sim_busy():
 		var args: Array = [grid.duplicate(), grid_size, wolfram_rule, wolfram_row, edge_mode, allow_wrap]
 		if _enqueue_sim_task("wolfram", Callable(self, "sim_job_wolfram"), args):
 			return
@@ -1572,7 +1604,7 @@ func step_ants() -> void:
 		if native_result.get("changed", true):
 			request_render()
 		return
-	if not _any_sim_busy():
+	if not _grid_sim_busy():
 		var args: Array = [grid.duplicate(), grid_size, edge_mode, ants.duplicate(), ant_directions.duplicate(), ant_colors.duplicate()]
 		if _enqueue_sim_task("ants", Callable(self, "sim_job_ants"), args):
 			return
@@ -1632,7 +1664,7 @@ func step_totalistic(birth: Array[int], survive: Array[int]) -> void:
 			if native_result.get("changed", true):
 				request_render()
 			return
-	if not _any_sim_busy():
+	if not _grid_sim_busy():
 		var args: Array = [grid.duplicate(), grid_size, birth.duplicate(), survive.duplicate(), edge_mode]
 		if _enqueue_sim_task("totalistic", Callable(self, "sim_job_totalistic"), args):
 			return
@@ -1724,7 +1756,7 @@ func step_turmites() -> void:
 		if native_result.get("changed", true):
 			request_render()
 		return
-	if not _any_sim_busy():
+	if not _grid_sim_busy():
 		var args: Array = [grid.duplicate(), grid_size, edge_mode, turmites.duplicate(), turmite_directions.duplicate(), turmite_colors.duplicate(), turmite_rule]
 		if _enqueue_sim_task("turmites", Callable(self, "sim_job_turmites"), args):
 			return
@@ -1806,7 +1838,7 @@ func step_sand() -> void:
 			if native_result.get("changed", false):
 				request_render()
 			return
-	if not _any_sim_busy():
+	if not _sim_busy("sand"):
 		var args: Array = [sand_grid.duplicate(), grid_size, edge_mode]
 		if _enqueue_sim_task("sand", Callable(self, "sim_job_sand"), args):
 			return
@@ -3342,3 +3374,5 @@ func _notification(what: int) -> void:
 		request_render()
 	elif what == NOTIFICATION_PREDELETE or what == NOTIFICATION_WM_CLOSE_REQUEST:
 		_stop_sim_workers()
+	if what == NOTIFICATION_RESIZED or what == NOTIFICATION_ENTER_TREE:
+		update_sidebar_scale()
