@@ -132,6 +132,9 @@ var overlay_texture: ImageTexture = ImageTexture.new()
 @onready var grid_view: TextureRect = TextureRect.new()
 @onready var info_label: Label = Label.new()
 @onready var view_container: Panel = Panel.new()
+@onready var play_button: Button = Button.new()
+@onready var help_panel: PanelContainer = PanelContainer.new()
+@onready var help_label: RichTextLabel = RichTextLabel.new()
 
 @onready var wolfram_rate_spin: SpinBox = SpinBox.new()
 @onready var ant_rate_spin: SpinBox = SpinBox.new()
@@ -191,6 +194,27 @@ func style_picker_button(picker: ColorPickerButton) -> void:
 func apply_picker_color(picker: ColorPickerButton, color: Color) -> void:
 	picker.color = color
 	picker.modulate = color
+
+func show_help(text: String) -> void:
+	if help_label == null or help_panel == null:
+		return
+	help_label.text = text
+	help_panel.visible = true
+
+func register_help(control: Control, text: String) -> void:
+	if control == null:
+		return
+	control.tooltip_text = text
+	control.mouse_entered.connect(func() -> void: show_help(text))
+	control.focus_entered.connect(func() -> void: show_help(text))
+	if control is BaseButton:
+		var button: BaseButton = control as BaseButton
+		button.pressed.connect(func() -> void: show_help(text))
+	else:
+		control.gui_input.connect(func(event: InputEvent) -> void:
+			if event is InputEventMouseButton and event.pressed:
+				show_help(text)
+		)
 
 func update_grid_line_controls() -> void:
 	grid_line_thickness_spin.editable = grid_lines_enabled
@@ -401,13 +425,13 @@ func build_ui() -> void:
 	info_label.clip_text = true
 	info_row.add_child(info_label)
 
-	var play_button: Button = Button.new()
 	play_button.text = "Play" if is_paused else "Pause"
 	play_button.pressed.connect(func() -> void:
 		is_paused = !is_paused
 		play_button.text = "Play" if is_paused else "Pause"
 	)
 	info_row.add_child(play_button)
+	register_help(play_button, "Toggle play and pause for all simulations. You can also press Space to switch states.")
 
 	var step_button: Button = Button.new()
 	step_button.text = "Step"
@@ -415,6 +439,21 @@ func build_ui() -> void:
 		step_requested = true
 	)
 	info_row.add_child(step_button)
+	register_help(step_button, "Advance every enabled simulation by a single update without starting auto-play.")
+
+	help_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	help_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	help_label.text = ""
+	var help_margin: MarginContainer = MarginContainer.new()
+	help_margin.add_theme_constant_override("margin_left", 6)
+	help_margin.add_theme_constant_override("margin_right", 6)
+	help_margin.add_theme_constant_override("margin_top", 6)
+	help_margin.add_theme_constant_override("margin_bottom", 6)
+	help_margin.add_child(help_label)
+	help_panel.visible = false
+	help_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	help_panel.add_child(help_margin)
+	sidebar_layout.add_child(help_panel)
 
 	var scroll: ScrollContainer = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -438,15 +477,15 @@ func build_ui() -> void:
 	controls_column.add_theme_constant_override("separation", 8)
 	scroll.add_child(controls_column)
 
-	controls_column.add_child(build_collapsible_section("Grid", build_grid_controls()))
-	controls_column.add_child(build_collapsible_section("Export", build_export_controls()))
-	controls_column.add_child(build_collapsible_section("Wolfram", build_wolfram_controls()))
-	controls_column.add_child(build_collapsible_section("Langton's Ant", build_ant_controls()))
-	controls_column.add_child(build_collapsible_section("Turmite", build_turmite_controls()))
-	controls_column.add_child(build_collapsible_section("Game of Life", build_gol_controls()))
-	controls_column.add_child(build_collapsible_section("Day & Night", build_day_night_controls()))
-	controls_column.add_child(build_collapsible_section("Seeds", build_seeds_controls()))
-	controls_column.add_child(build_collapsible_section("Falling Sand", build_sand_controls()))
+	controls_column.add_child(build_collapsible_section("Grid", build_grid_controls(), "Control grid size, edge wrapping, colors, drawing, and update speed for every simulation."))
+	controls_column.add_child(build_collapsible_section("Export", build_export_controls(), "Set a filename pattern and export the current view to a PNG file."))
+	controls_column.add_child(build_collapsible_section("Wolfram", build_wolfram_controls(), "1D cellular automaton using Wolfram rules. Seed a row, then press Step or enable Auto to watch the rows accumulate."))
+	controls_column.add_child(build_collapsible_section("Langton's Ant", build_ant_controls(), "Spawn ants that turn right on black and left on white, flipping the cell each time. Use Auto to let them roam or Step for manual moves."))
+	controls_column.add_child(build_collapsible_section("Turmite", build_turmite_controls(), "Generalized Langton ants that follow custom turn rules. Spawn turmites, then Step or enable Auto to see their trails."))
+	controls_column.add_child(build_collapsible_section("Game of Life", build_gol_controls(), "Conway's Game of Life. Set a step rate, seed the grid, then Auto or Step to evolve the pattern."))
+	controls_column.add_child(build_collapsible_section("Day & Night", build_day_night_controls(), "Day & Night variant of Life with symmetric rules. Seed the grid, then Step or Auto to run the simulation."))
+	controls_column.add_child(build_collapsible_section("Seeds", build_seeds_controls(), "Seeds automaton (birth on 2, no survival). Populate the grid and use Step or Auto to advance."))
+	controls_column.add_child(build_collapsible_section("Sandpile", build_sand_controls(), "Toppling sandpile. Drop sand piles and run steps to watch grains cascade. Auto keeps the pile flowing."))
 
 	view_container = Panel.new()
 	view_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -481,7 +520,7 @@ func initialize_grid() -> void:
 	update_grid_size()
 	request_render()
 
-func build_collapsible_section(title: String, content: Control) -> VBoxContainer:
+func build_collapsible_section(title: String, content: Control, help_text: String = "") -> VBoxContainer:
 	var wrapper: VBoxContainer = VBoxContainer.new()
 	wrapper.add_theme_constant_override("separation", 4)
 
@@ -489,6 +528,8 @@ func build_collapsible_section(title: String, content: Control) -> VBoxContainer
 	header.text = title
 	header.toggle_mode = true
 	header.button_pressed = false
+	if not help_text.is_empty():
+		register_help(header, help_text)
 	wrapper.add_child(header)
 
 	var holder: VBoxContainer = VBoxContainer.new()
@@ -521,6 +562,7 @@ func build_grid_controls() -> VBoxContainer:
 		request_render()
 	)
 	size_row.add_child(cell_size_spin)
+	register_help(cell_size_spin, "Set the pixel size of each cell. Larger values make the grid coarser and easier to see.")
 	box.add_child(size_row)
 
 	var global_rate_row: HBoxContainer = HBoxContainer.new()
@@ -530,11 +572,12 @@ func build_grid_controls() -> VBoxContainer:
 	var global_rate_spin: SpinBox = SpinBox.new()
 	global_rate_spin.min_value = 0.0
 	global_rate_spin.max_value = 5000.0
-	global_rate_spin.step = 0.1
+	global_rate_spin.step = 1.0
 	global_rate_spin.allow_greater = true
 	global_rate_spin.value = global_rate
 	global_rate_spin.value_changed.connect(func(v: float) -> void: global_rate = max(0.0, v))
 	global_rate_row.add_child(global_rate_spin)
+	register_help(global_rate_spin, "Set the global updates per second multiplier. Arrows now change whole numbers, but you can still type precise decimals.")
 	box.add_child(global_rate_row)
 
 	var edge_row: HBoxContainer = HBoxContainer.new()
@@ -547,6 +590,7 @@ func build_grid_controls() -> VBoxContainer:
 	edge_option.selected = EDGE_WRAP
 	edge_option.item_selected.connect(func(index: int) -> void: edge_mode = index)
 	edge_row.add_child(edge_option)
+	register_help(edge_option, "Choose how edges behave: wrap around, bounce ants/turmites, or fall off into empty space.")
 	box.add_child(edge_row)
 
 	var color_row: HBoxContainer = HBoxContainer.new()
@@ -569,6 +613,8 @@ func build_grid_controls() -> VBoxContainer:
 	)
 	color_row.add_child(alive_picker)
 	color_row.add_child(dead_picker)
+	register_help(alive_picker, "Pick the color used for live cells across all automata.")
+	register_help(dead_picker, "Pick the color used for empty/dead cells.")
 	box.add_child(color_row)
 
 	var grid_line_row: HBoxContainer = HBoxContainer.new()
@@ -600,6 +646,9 @@ func build_grid_controls() -> VBoxContainer:
 		request_render()
 	)
 	grid_line_row.add_child(grid_line_color_picker)
+	register_help(grid_line_toggle, "Show or hide a grid overlay on the simulation view.")
+	register_help(grid_line_thickness_spin, "Adjust the thickness of the grid overlay lines.")
+	register_help(grid_line_color_picker, "Choose the color used for grid overlay lines.")
 	box.add_child(grid_line_row)
 
 	var draw_row: HBoxContainer = HBoxContainer.new()
@@ -621,6 +670,8 @@ func build_grid_controls() -> VBoxContainer:
 		draw_mode = draw_mode_option.get_item_id(index)
 	)
 	draw_row.add_child(draw_mode_option)
+	register_help(draw_toggle, "Enable freehand drawing on the grid. Hold left click (or touch) to paint while enabled.")
+	register_help(draw_mode_option, "Choose whether drawing paints live cells or erases existing contents.")
 	box.add_child(draw_row)
 
 	var fill_row: HBoxContainer = HBoxContainer.new()
@@ -637,6 +688,8 @@ func build_grid_controls() -> VBoxContainer:
 	seed_button.text = "Randomize"
 	seed_button.pressed.connect(func() -> void: random_fill_grid(); request_render())
 	fill_row.add_child(seed_button)
+	register_help(fill_spin, "Set the percentage of cells that start alive when seeding or resetting certain automata.")
+	register_help(seed_button, "Fill the grid randomly using the Seed % value.")
 	box.add_child(fill_row)
 
 	var clear_button: Button = Button.new()
@@ -649,6 +702,7 @@ func build_grid_controls() -> VBoxContainer:
 		request_render()
 	)
 	box.add_child(clear_button)
+	register_help(clear_button, "Wipe the grid, sand, ants, and turmites to start fresh.")
 
 	return box
 
@@ -667,6 +721,7 @@ func build_export_controls() -> VBoxContainer:
 		export_pattern = text
 	)
 	pattern_row.add_child(export_pattern_edit)
+	register_help(export_pattern_edit, "Set the filename or pattern for exports. Use '#' characters to insert an auto-incremented number.")
 	box.add_child(pattern_row)
 
 	var export_row: HBoxContainer = HBoxContainer.new()
@@ -688,6 +743,7 @@ func build_export_controls() -> VBoxContainer:
 	var hint: Label = Label.new()
 	hint.text = "Use # for numbering"
 	export_row.add_child(hint)
+	register_help(export_button, "Save the current view as a PNG. In the editor, a file picker will open; on the web build, it downloads directly.")
 	box.add_child(export_row)
 
 	return box
@@ -705,19 +761,21 @@ func build_wolfram_controls() -> VBoxContainer:
 	rule_spin.value = wolfram_rule
 	rule_spin.value_changed.connect(func(v: float) -> void: wolfram_rule = int(v))
 	rule_row.add_child(rule_spin)
+	register_help(rule_spin, "Pick a Wolfram elementary rule (0-255). Classic fractals start at 30 and 110.")
 	box.add_child(rule_row)
 
 	var rate_row: HBoxContainer = HBoxContainer.new()
 	var rate_label: Label = Label.new()
-	rate_label.text = "Steps/sec"
+	rate_label.text = "Steps/update"
 	rate_row.add_child(rate_label)
 	wolfram_rate_spin.min_value = 0.0
 	wolfram_rate_spin.max_value = 200.0
-	wolfram_rate_spin.step = 0.01
+	wolfram_rate_spin.step = 1.0
 	wolfram_rate_spin.value = wolfram_rate
 	wolfram_rate_spin.allow_greater = true
 	wolfram_rate_spin.value_changed.connect(func(v: float) -> void: wolfram_rate = max(0.0, v))
 	rate_row.add_child(wolfram_rate_spin)
+	register_help(wolfram_rate_spin, "Set how many Wolfram rows to generate each global update. Use arrows for whole numbers or type precise decimals.")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -730,6 +788,8 @@ func build_wolfram_controls() -> VBoxContainer:
 	step.text = "Step"
 	step.pressed.connect(func() -> void: step_wolfram(); request_render())
 	buttons.add_child(step)
+	register_help(toggle, "Continuously generate new Wolfram rows at the selected rate.")
+	register_help(step, "Generate a single Wolfram row using the active rule and seed.")
 	box.add_child(buttons)
 
 	var seed_row: HBoxContainer = HBoxContainer.new()
@@ -741,6 +801,8 @@ func build_wolfram_controls() -> VBoxContainer:
 	center_seed.text = "Center dot"
 	center_seed.pressed.connect(func() -> void: seed_wolfram_row(false); request_render())
 	seed_row.add_child(center_seed)
+	register_help(random_seed, "Fill the top row randomly using the Seed % value, then start stepping.")
+	register_help(center_seed, "Place a single live cell in the center of the top row for symmetric patterns.")
 	box.add_child(seed_row)
 
 	var fill_row: HBoxContainer = HBoxContainer.new()
@@ -751,6 +813,7 @@ func build_wolfram_controls() -> VBoxContainer:
 		request_render()
 	)
 	fill_row.add_child(fill_button)
+	register_help(fill_button, "Advance the Wolfram automaton until every row is filled once.")
 	box.add_child(fill_row)
 
 	return box
@@ -777,19 +840,23 @@ func build_ant_controls() -> VBoxContainer:
 	spawn.text = "Spawn"
 	spawn.pressed.connect(func() -> void: spawn_ants(int(ant_count_spin.value), ant_color_picker.color))
 	count_row.add_child(spawn)
+	register_help(ant_count_spin, "Choose how many ants to add when spawning.")
+	register_help(ant_color_picker, "Pick the trail color used for newly spawned ants.")
+	register_help(spawn, "Spawn Langton's ants at random positions with the selected color.")
 	box.add_child(count_row)
 
 	var rate_row: HBoxContainer = HBoxContainer.new()
 	var rate_label: Label = Label.new()
-	rate_label.text = "Steps/sec"
+	rate_label.text = "Steps/update"
 	rate_row.add_child(rate_label)
 	ant_rate_spin.min_value = 0.0
 	ant_rate_spin.max_value = 500.0
-	ant_rate_spin.step = 0.01
+	ant_rate_spin.step = 1.0
 	ant_rate_spin.value = ant_rate
 	ant_rate_spin.allow_greater = true
 	ant_rate_spin.value_changed.connect(func(v: float) -> void: ant_rate = max(0.0, v))
 	rate_row.add_child(ant_rate_spin)
+	register_help(ant_rate_spin, "Steps each ant takes per global update. Arrows change whole steps; type decimals for finer control.")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -802,6 +869,8 @@ func build_ant_controls() -> VBoxContainer:
 	step.text = "Step"
 	step.pressed.connect(func() -> void: step_ants(); request_render())
 	buttons.add_child(step)
+	register_help(toggle, "Let all spawned ants move continuously at the chosen rate.")
+	register_help(step, "Move all ants forward by one step.")
 	box.add_child(buttons)
 
 	var clear_row: HBoxContainer = HBoxContainer.new()
@@ -809,6 +878,7 @@ func build_ant_controls() -> VBoxContainer:
 	clear_button.text = "Clear ants"
 	clear_button.pressed.connect(func() -> void: clear_ants(); request_render())
 	clear_row.add_child(clear_button)
+	register_help(clear_button, "Remove every ant and reset their timers.")
 	box.add_child(clear_row)
 
 	return box
@@ -819,15 +889,16 @@ func build_gol_controls() -> VBoxContainer:
 
 	var rate_row: HBoxContainer = HBoxContainer.new()
 	var rate_label: Label = Label.new()
-	rate_label.text = "Steps/sec"
+	rate_label.text = "Steps/update"
 	rate_row.add_child(rate_label)
 	gol_rate_spin.min_value = 0.0
 	gol_rate_spin.max_value = 120.0
-	gol_rate_spin.step = 0.001
+	gol_rate_spin.step = 1.0
 	gol_rate_spin.value = gol_rate
 	gol_rate_spin.allow_greater = true
 	gol_rate_spin.value_changed.connect(func(v: float) -> void: gol_rate = max(0.0, v))
 	rate_row.add_child(gol_rate_spin)
+	register_help(gol_rate_spin, "Number of Game of Life steps performed per global update. Arrows change whole steps, decimals allowed by typing.")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -840,6 +911,8 @@ func build_gol_controls() -> VBoxContainer:
 	step.text = "Step"
 	step.pressed.connect(func() -> void: step_game_of_life(); request_render())
 	buttons.add_child(step)
+	register_help(toggle, "Continuously evolve the Game of Life grid at the selected rate.")
+	register_help(step, "Advance the Game of Life by one generation.")
 	box.add_child(buttons)
 
 	return box
@@ -850,15 +923,16 @@ func build_day_night_controls() -> VBoxContainer:
 
 	var rate_row: HBoxContainer = HBoxContainer.new()
 	var rate_label: Label = Label.new()
-	rate_label.text = "Steps/sec"
+	rate_label.text = "Steps/update"
 	rate_row.add_child(rate_label)
 	day_night_rate_spin.min_value = 0.0
 	day_night_rate_spin.max_value = 120.0
-	day_night_rate_spin.step = 0.001
+	day_night_rate_spin.step = 1.0
 	day_night_rate_spin.value = day_night_rate
 	day_night_rate_spin.allow_greater = true
 	day_night_rate_spin.value_changed.connect(func(v: float) -> void: day_night_rate = max(0.0, v))
 	rate_row.add_child(day_night_rate_spin)
+	register_help(day_night_rate_spin, "Steps run for the Day & Night rules per global update. Arrows change whole steps; decimals can be typed.")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -871,6 +945,8 @@ func build_day_night_controls() -> VBoxContainer:
 	step.text = "Step"
 	step.pressed.connect(func() -> void: step_day_night(); request_render())
 	buttons.add_child(step)
+	register_help(toggle, "Run Day & Night continuously at the selected rate.")
+	register_help(step, "Advance Day & Night by a single step.")
 	box.add_child(buttons)
 
 	return box
@@ -881,15 +957,16 @@ func build_seeds_controls() -> VBoxContainer:
 
 	var rate_row: HBoxContainer = HBoxContainer.new()
 	var rate_label: Label = Label.new()
-	rate_label.text = "Steps/sec"
+	rate_label.text = "Steps/update"
 	rate_row.add_child(rate_label)
 	seeds_rate_spin.min_value = 0.0
 	seeds_rate_spin.max_value = 120.0
-	seeds_rate_spin.step = 0.001
+	seeds_rate_spin.step = 1.0
 	seeds_rate_spin.value = seeds_rate
 	seeds_rate_spin.allow_greater = true
 	seeds_rate_spin.value_changed.connect(func(v: float) -> void: seeds_rate = max(0.0, v))
 	rate_row.add_child(seeds_rate_spin)
+	register_help(seeds_rate_spin, "Steps per global update for the Seeds automaton. Arrow keys change whole steps; type decimals for finer control.")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -902,6 +979,8 @@ func build_seeds_controls() -> VBoxContainer:
 	step.text = "Step"
 	step.pressed.connect(func() -> void: step_seeds(); request_render())
 	buttons.add_child(step)
+	register_help(toggle, "Run the Seeds automaton continuously at the chosen step rate.")
+	register_help(step, "Advance the Seeds automaton by one generation.")
 	box.add_child(buttons)
 
 	return box
@@ -924,6 +1003,7 @@ func build_sand_controls() -> VBoxContainer:
 		request_render()
 	)
 	palette_row.add_child(sand_palette_option)
+	register_help(sand_palette_option, "Choose a predefined sand color palette or switch to Custom when tweaking individual levels.")
 	box.add_child(palette_row)
 
 	sand_color_pickers.clear()
@@ -947,6 +1027,7 @@ func build_sand_controls() -> VBoxContainer:
 		)
 		sand_color_pickers.append(picker)
 		color_row.add_child(picker)
+		register_help(picker, "Set the color for sand level %d. Switching colors makes the palette Custom." % i)
 		box.add_child(color_row)
 
 	var amount_row: HBoxContainer = HBoxContainer.new()
@@ -966,6 +1047,8 @@ func build_sand_controls() -> VBoxContainer:
 		request_render()
 	)
 	amount_row.add_child(drop_button)
+	register_help(sand_amount_spin, "How many grains to add when dropping sand into the center or at a click.")
+	register_help(drop_button, "Drop the configured sand amount into the center of the grid.")
 	box.add_child(amount_row)
 
 	var click_row: HBoxContainer = HBoxContainer.new()
@@ -975,19 +1058,21 @@ func build_sand_controls() -> VBoxContainer:
 		sand_drop_at_click = v
 	)
 	click_row.add_child(sand_click_toggle)
+	register_help(sand_click_toggle, "When enabled, left-click on the grid to add a sand pile at the cursor.")
 	box.add_child(click_row)
 
 	var rate_row: HBoxContainer = HBoxContainer.new()
 	var rate_label: Label = Label.new()
-	rate_label.text = "Steps/sec"
+	rate_label.text = "Steps/update"
 	rate_row.add_child(rate_label)
 	sand_rate_spin.min_value = 0.0
 	sand_rate_spin.max_value = 240.0
-	sand_rate_spin.step = 0.01
+	sand_rate_spin.step = 1.0
 	sand_rate_spin.allow_greater = true
 	sand_rate_spin.value = sand_rate
 	sand_rate_spin.value_changed.connect(func(v: float) -> void: sand_rate = max(0.0, v))
 	rate_row.add_child(sand_rate_spin)
+	register_help(sand_rate_spin, "Number of sandpile relaxation steps per global update. Arrows change whole steps; type decimals if needed.")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -1010,6 +1095,9 @@ func build_sand_controls() -> VBoxContainer:
 		request_render()
 	)
 	buttons.add_child(clear_button)
+	register_help(toggle, "Continuously settle the sandpile using the selected step rate.")
+	register_help(step, "Perform a single sandpile relaxation step.")
+	register_help(clear_button, "Remove all sand grains from the grid.")
 	box.add_child(buttons)
 
 	return box
@@ -1033,6 +1121,7 @@ func build_turmite_controls() -> VBoxContainer:
 		turmite_rule = choice
 	)
 	rule_row.add_child(turmite_rule_option)
+	register_help(turmite_rule_option, "Pick a turn rule sequence for turmites. Each letter sets how turmites turn when landing on a state.")
 	box.add_child(rule_row)
 
 	var spawn_row: HBoxContainer = HBoxContainer.new()
@@ -1055,19 +1144,23 @@ func build_turmite_controls() -> VBoxContainer:
 	spawn_button.text = "Spawn"
 	spawn_button.pressed.connect(func() -> void: spawn_turmites(turmite_count, turmite_color_picker.color))
 	spawn_row.add_child(spawn_button)
+	register_help(turmite_count_spin, "How many turmites to spawn at random positions.")
+	register_help(turmite_color_picker, "Choose the trail color for new turmites.")
+	register_help(spawn_button, "Spawn turmites using the selected count, rule, and color.")
 	box.add_child(spawn_row)
 
 	var rate_row: HBoxContainer = HBoxContainer.new()
 	var rate_label: Label = Label.new()
-	rate_label.text = "Steps/sec"
+	rate_label.text = "Steps/update"
 	rate_row.add_child(rate_label)
 	turmite_rate_spin.min_value = 0.0
 	turmite_rate_spin.max_value = 500.0
-	turmite_rate_spin.step = 0.01
+	turmite_rate_spin.step = 1.0
 	turmite_rate_spin.value = turmite_rate
 	turmite_rate_spin.allow_greater = true
 	turmite_rate_spin.value_changed.connect(func(v: float) -> void: turmite_rate = max(0.0, v))
 	rate_row.add_child(turmite_rate_spin)
+	register_help(turmite_rate_spin, "Steps per update for every turmite. Arrows adjust by whole steps; type decimals for fine tuning.")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -1087,6 +1180,9 @@ func build_turmite_controls() -> VBoxContainer:
 		request_render()
 	)
 	buttons.add_child(clear_button)
+	register_help(toggle, "Run all turmites continuously at the selected rate.")
+	register_help(step, "Advance every turmite by one step.")
+	register_help(clear_button, "Remove all turmites and their state.")
 	box.add_child(buttons)
 
 	return box
@@ -3169,6 +3265,14 @@ func on_grid_gui_input(event: InputEvent) -> void:
 		accept_event()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey:
+		var key_event: InputEventKey = event as InputEventKey
+		if key_event.pressed and not key_event.echo and key_event.keycode == KEY_SPACE:
+			is_paused = !is_paused
+			if play_button != null:
+				play_button.text = "Play" if is_paused else "Pause"
+			accept_event()
+			return
 	if not draw_enabled:
 		return
 	if event is InputEventMouseButton:
