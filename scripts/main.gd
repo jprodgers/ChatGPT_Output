@@ -130,6 +130,7 @@ var grid_shader: Shader = null
 var state_texture: ImageTexture = ImageTexture.new()
 var sand_texture: ImageTexture = ImageTexture.new()
 var overlay_texture: ImageTexture = ImageTexture.new()
+var sand_has_content: bool = false
 
 @onready var grid_view: TextureRect = TextureRect.new()
 @onready var info_label: Label = Label.new()
@@ -252,6 +253,12 @@ func enforce_integer_spin(spin: SpinBox, min_value: int = 0) -> void:
 		spin.value = float(value)
 		cleaning = false
 	)
+
+func sand_grid_has_content() -> bool:
+	for v in sand_grid:
+		if v != 0:
+			return true
+	return false
 
 func is_high_density_device() -> bool:
 	var os_name: String = OS.get_name()
@@ -1816,6 +1823,7 @@ func add_sand_at(pos: Vector2i, amount: int) -> void:
 	var idx: int = pos.y * grid_size.x + pos.x
 	if idx >= 0 and idx < sand_grid.size():
 		sand_grid[idx] += max(0, amount)
+		sand_has_content = sand_grid_has_content()
 		request_render()
 
 func add_sand_to_center(amount: int) -> void:
@@ -1825,6 +1833,7 @@ func add_sand_to_center(amount: int) -> void:
 func clear_sand() -> void:
 	sand_grid.fill(0)
 	sand_accumulator = 0.0
+	sand_has_content = false
 	request_render()
 
 func step_sand() -> void:
@@ -1835,6 +1844,7 @@ func step_sand() -> void:
 		var native_result: Dictionary = native_automata.call("step_sand", sand_grid, grid_size, edge_mode)
 		if native_result.has("grid") and native_result["grid"] is PackedInt32Array:
 			sand_grid = native_result["grid"]
+			sand_has_content = sand_grid_has_content()
 			if native_result.get("changed", false):
 				request_render()
 			return
@@ -1850,6 +1860,7 @@ func step_sand() -> void:
 			if sand_grid[idx] >= 4:
 				updates.append(Vector2i(x, y))
 	if updates.is_empty():
+		sand_has_content = sand_grid_has_content()
 		return
 
 	for pos in updates:
@@ -1868,6 +1879,7 @@ func step_sand() -> void:
 						continue
 			var nidx: int = next.y * grid_size.x + next.x
 			sand_grid[nidx] += 1
+	sand_has_content = sand_grid_has_content()
 	if not updates.is_empty():
 		request_render()
 
@@ -1881,20 +1893,26 @@ func build_grid_image_from_data(size: Vector2i, data: PackedByteArray) -> Image:
 		img.set_data(size.x, size.y, false, Image.FORMAT_R8, bytes)
 	return img
 
-func build_sand_image_from_data(size: Vector2i, data: PackedInt32Array, palette: Array[Color]) -> Image:
+func build_sand_image_from_data(size: Vector2i, data: PackedInt32Array, palette: Array[Color]) -> Dictionary:
 	var img: Image = Image.create(size.x, size.y, false, Image.FORMAT_R8)
 	var bytes: PackedByteArray = PackedByteArray()
 	bytes.resize(size.x * size.y)
 	var palette_size: int = max(1, palette.size())
+	var has_content: bool = false
 	for y in range(size.y):
 		for x in range(size.x):
 			var idx: int = y * size.x + x
 			if idx >= data.size():
 				continue
-			var level: int = data[idx] % palette_size
-			bytes[idx] = level
+			var value: int = data[idx]
+			if value > 0:
+				has_content = true
+			var encoded: int = 0
+			if value > 0:
+				encoded = ((value - 1) % palette_size) + 1
+			bytes[idx] = encoded
 	img.set_data(size.x, size.y, false, Image.FORMAT_R8, bytes)
-	return img
+	return {"image": img, "has_content": has_content}
 
 func build_overlay_image_from_data(size: Vector2i, ant_pos: Array[Vector2i], ant_cols: Array[Color], turmite_pos: Array[Vector2i], turmite_cols: Array[Color]) -> Image:
 	var img: Image = Image.create(size.x, size.y, false, Image.FORMAT_RGBA8)
@@ -1934,7 +1952,9 @@ func build_render_component(params: Dictionary, component: String) -> Dictionary
 	if component == "grid":
 		result[component] = build_grid_image_from_data(size, grid_data)
 	elif component == "sand":
-		result[component] = build_sand_image_from_data(size, sand_data, palette)
+		var sand_render: Dictionary = build_sand_image_from_data(size, sand_data, palette)
+		result[component] = sand_render.get("image", null)
+		result["sand_has_content"] = sand_render.get("has_content", false)
 	elif component == "overlay":
 		result[component] = build_overlay_image_from_data(size, ant_pos, ant_cols, turmite_pos, turmite_cols)
 
@@ -1966,6 +1986,7 @@ func apply_render_result(result: Dictionary) -> void:
 	var img: Image = result.get("grid", null)
 	var sand_img: Image = result.get("sand", null)
 	var overlay_img: Image = result.get("overlay", null)
+	sand_has_content = result.get("sand_has_content", sand_has_content)
 
 	if img != null:
 		state_texture = update_image_texture(state_texture, img)
@@ -1984,6 +2005,7 @@ func apply_render_result(result: Dictionary) -> void:
 		grid_material.set_shader_parameter("dead_color", dead_color)
 		grid_material.set_shader_parameter("sand_palette", sand_colors)
 		grid_material.set_shader_parameter("sand_palette_size", sand_colors.size())
+		grid_material.set_shader_parameter("sand_visible", sand_enabled or sand_has_content)
 		grid_material.set_shader_parameter("grid_lines_enabled", grid_lines_enabled)
 		grid_material.set_shader_parameter("grid_line_color", grid_line_color)
 		grid_material.set_shader_parameter("grid_line_thickness", float(grid_line_thickness))
@@ -2059,6 +2081,7 @@ func _apply_sim_results() -> bool:
 	if not sand_result.is_empty():
 		if sand_result.has("grid") and sand_result["grid"] is PackedInt32Array:
 			sand_grid = sand_result["grid"]
+			sand_has_content = sand_grid_has_content()
 		if sand_result.get("changed", false):
 			changed = true
 	return changed
@@ -2114,6 +2137,7 @@ func export_grid_image(path: String) -> void:
 func build_export_image() -> Image:
 	var img: Image = Image.create(grid_size.x, grid_size.y, false, Image.FORMAT_RGBA8)
 	var palette_size: int = max(1, sand_colors.size())
+	var sand_visible: bool = sand_enabled or sand_has_content
 	var overlay_map: Dictionary = {}
 	for i in range(ants.size()):
 		overlay_map[ants[i]] = ant_colors[i]
@@ -2123,8 +2147,12 @@ func build_export_image() -> Image:
 		for x in range(grid_size.x):
 			var idx: int = y * grid_size.x + x
 			var color: Color = dead_color if grid[idx] == 0 else alive_color
-			if idx < sand_grid.size() and sand_grid[idx] > 0:
-				color = sand_colors[(sand_grid[idx] % palette_size + palette_size) % palette_size]
+			if sand_visible and idx < sand_grid.size():
+				var raw: int = sand_grid[idx]
+				var palette_idx: int = clamp(raw - 1, 0, palette_size - 1)
+				if raw <= 0:
+					palette_idx = 0
+				color = sand_colors[palette_idx]
 			var pos: Vector2i = Vector2i(x, y)
 			if overlay_map.has(pos):
 				color = overlay_map[pos]

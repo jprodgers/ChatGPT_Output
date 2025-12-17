@@ -8,6 +8,7 @@ uniform vec4 alive_color : source_color = vec4(1.0);
 uniform vec4 dead_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform vec4 sand_palette[4] : source_color;
 uniform int sand_palette_size = 0;
+uniform bool sand_visible = false;
 
 uniform bool grid_lines_enabled = false;
 uniform vec4 grid_line_color : source_color = vec4(0.2, 0.2, 0.2, 1.0);
@@ -27,8 +28,9 @@ void fragment() {
         vec4 overlay_color = texture(overlay_tex, sample_uv);
 
         base_color = mix(dead_color, alive_color, step(0.5, state_value));
-        if (sand_value > 0.0 && sand_palette_size > 0) {
-            int idx = int(mod(floor(sand_value * 255.0 + 0.5), float(sand_palette_size)));
+        if (sand_visible && sand_palette_size > 0) {
+            int raw = int(floor(sand_value * 255.0 + 0.5));
+            int idx = clamp(max(raw - 1, 0), 0, sand_palette_size - 1);
             base_color = sand_palette[idx];
         }
         if (overlay_color.a > 0.0) {
