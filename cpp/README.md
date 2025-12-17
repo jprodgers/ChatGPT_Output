@@ -1,9 +1,12 @@
 # Native automata extension
 
-This folder contains a Godot 4 GDExtension that moves the hottest simulation loops (Game of Life and the falling sand pile) into C++. The extension exposes a `NativeAutomata` class with two methods:
+This folder contains a Godot 4 GDExtension that moves the hottest simulation loops (Game of Life and the falling sand pile) into C++. The extension exposes a `NativeAutomata` class with fast paths for every simulation loop that runs per-frame:
 
 - `step_totalistic(grid: PackedByteArray, size: Vector2i, birth: Array[int], survive: Array[int], edge_mode: int)`
 - `step_sand(grid: PackedInt32Array, size: Vector2i, edge_mode: int)`
+- `step_wolfram(grid: PackedByteArray, size: Vector2i, rule: int, row: int, edge_mode: int, allow_wrap: bool)`
+- `step_ants(grid: PackedByteArray, size: Vector2i, edge_mode: int, ants: Array[Vector2i], directions: Array[int], colors: Array[Color])`
+- `step_turmites(grid: PackedByteArray, size: Vector2i, edge_mode: int, ants: Array[Vector2i], directions: Array[int], colors: Array[Color], rule: String)`
 
 Both return a `Dictionary` with the updated grid plus a `changed` flag so GDScript can short‑circuit redraws when no updates occurred.
 
