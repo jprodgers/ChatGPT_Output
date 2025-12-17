@@ -589,6 +589,7 @@ func build_grid_controls() -> VBoxContainer:
 	global_rate_spin.min_value = 0.0
 	global_rate_spin.max_value = 5000.0
 	global_rate_spin.step = 1.0
+	global_rate_spin.rounded = false
 	global_rate_spin.allow_greater = true
 	global_rate_spin.value = global_rate
 	global_rate_spin.value_changed.connect(func(v: float) -> void: global_rate = max(0.0, v))
@@ -787,6 +788,7 @@ func build_wolfram_controls() -> VBoxContainer:
 	wolfram_rate_spin.min_value = 0.0
 	wolfram_rate_spin.max_value = 200.0
 	wolfram_rate_spin.step = 1.0
+	wolfram_rate_spin.rounded = false
 	wolfram_rate_spin.value = wolfram_rate
 	wolfram_rate_spin.allow_greater = true
 	wolfram_rate_spin.value_changed.connect(func(v: float) -> void: wolfram_rate = max(0.0, v))
@@ -868,6 +870,7 @@ func build_ant_controls() -> VBoxContainer:
 	ant_rate_spin.min_value = 0.0
 	ant_rate_spin.max_value = 500.0
 	ant_rate_spin.step = 1.0
+	ant_rate_spin.rounded = false
 	ant_rate_spin.value = ant_rate
 	ant_rate_spin.allow_greater = true
 	ant_rate_spin.value_changed.connect(func(v: float) -> void: ant_rate = max(0.0, v))
@@ -910,6 +913,7 @@ func build_gol_controls() -> VBoxContainer:
 	gol_rate_spin.min_value = 0.0
 	gol_rate_spin.max_value = 120.0
 	gol_rate_spin.step = 1.0
+	gol_rate_spin.rounded = false
 	gol_rate_spin.value = gol_rate
 	gol_rate_spin.allow_greater = true
 	gol_rate_spin.value_changed.connect(func(v: float) -> void: gol_rate = max(0.0, v))
@@ -944,6 +948,7 @@ func build_day_night_controls() -> VBoxContainer:
 	day_night_rate_spin.min_value = 0.0
 	day_night_rate_spin.max_value = 120.0
 	day_night_rate_spin.step = 1.0
+	day_night_rate_spin.rounded = false
 	day_night_rate_spin.value = day_night_rate
 	day_night_rate_spin.allow_greater = true
 	day_night_rate_spin.value_changed.connect(func(v: float) -> void: day_night_rate = max(0.0, v))
@@ -978,6 +983,7 @@ func build_seeds_controls() -> VBoxContainer:
 	seeds_rate_spin.min_value = 0.0
 	seeds_rate_spin.max_value = 120.0
 	seeds_rate_spin.step = 1.0
+	seeds_rate_spin.rounded = false
 	seeds_rate_spin.value = seeds_rate
 	seeds_rate_spin.allow_greater = true
 	seeds_rate_spin.value_changed.connect(func(v: float) -> void: seeds_rate = max(0.0, v))
@@ -1084,6 +1090,7 @@ func build_sand_controls() -> VBoxContainer:
 	sand_rate_spin.min_value = 0.0
 	sand_rate_spin.max_value = 240.0
 	sand_rate_spin.step = 1.0
+	sand_rate_spin.rounded = false
 	sand_rate_spin.allow_greater = true
 	sand_rate_spin.value = sand_rate
 	sand_rate_spin.value_changed.connect(func(v: float) -> void: sand_rate = max(0.0, v))
@@ -1172,6 +1179,7 @@ func build_turmite_controls() -> VBoxContainer:
 	turmite_rate_spin.min_value = 0.0
 	turmite_rate_spin.max_value = 500.0
 	turmite_rate_spin.step = 1.0
+	turmite_rate_spin.rounded = false
 	turmite_rate_spin.value = turmite_rate
 	turmite_rate_spin.allow_greater = true
 	turmite_rate_spin.value_changed.connect(func(v: float) -> void: turmite_rate = max(0.0, v))
