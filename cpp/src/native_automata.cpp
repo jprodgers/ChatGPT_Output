@@ -84,7 +84,7 @@ protected:
     }
 
 public:
-    Dictionary step_totalistic(const PackedByteArray &grid, Vector2i size, const TypedArray<int32_t> &birth, const TypedArray<int32_t> &survive, int edge_mode) {
+    Dictionary step_totalistic(const PackedByteArray &grid, Vector2i size, const TypedArray<int> &birth, const TypedArray<int> &survive, int edge_mode) {
         Dictionary result;
         if (size.x <= 0 || size.y <= 0 || grid.size() != size.x * size.y) {
             result["grid"] = grid;
@@ -341,7 +341,7 @@ public:
         return result;
     }
 
-    Dictionary step_ants(const PackedByteArray &grid, Vector2i size, int edge_mode, const TypedArray<Vector2i> &ants, const TypedArray<int32_t> &directions, const TypedArray<Color> &colors) {
+    Dictionary step_ants(const PackedByteArray &grid, Vector2i size, int edge_mode, const TypedArray<Vector2i> &ants, const TypedArray<int> &directions, const TypedArray<Color> &colors) {
         Dictionary result;
         const int count = static_cast<int>(std::min<int64_t>(ants.size(), directions.size()));
         if (size.x <= 0 || size.y <= 0 || grid.size() != size.x * size.y || count <= 0) {
@@ -357,7 +357,7 @@ public:
         uint8_t *dst = next_grid.ptrw();
 
         TypedArray<Vector2i> next_ants;
-        TypedArray<int32_t> next_dirs;
+        TypedArray<int> next_dirs;
         TypedArray<Color> next_colors;
 
         bool changed = false;
@@ -369,7 +369,7 @@ public:
                 continue;
             }
 
-            int dir = static_cast<int32_t>(directions[i]) % DIR_COUNT;
+            int dir = static_cast<int>(directions[i]) % DIR_COUNT;
             if (dir < 0) {
                 dir += DIR_COUNT;
             }
@@ -407,7 +407,7 @@ public:
                     break;
             }
 
-            if (!changed && (pos != next || dir != static_cast<int32_t>(directions[i]) || dst[idx] != current)) {
+            if (!changed && (pos != next || dir != static_cast<int>(directions[i]) || dst[idx] != current)) {
                 changed = true;
             }
 
@@ -428,7 +428,7 @@ public:
         return result;
     }
 
-    Dictionary step_turmites(const PackedByteArray &grid, Vector2i size, int edge_mode, const TypedArray<Vector2i> &ants, const TypedArray<int32_t> &directions, const TypedArray<Color> &colors, const String &rule) {
+    Dictionary step_turmites(const PackedByteArray &grid, Vector2i size, int edge_mode, const TypedArray<Vector2i> &ants, const TypedArray<int> &directions, const TypedArray<Color> &colors, const String &rule) {
         Dictionary result;
         const int count = static_cast<int>(std::min<int64_t>(ants.size(), directions.size()));
         if (size.x <= 0 || size.y <= 0 || grid.size() != size.x * size.y || count <= 0) {
@@ -449,7 +449,7 @@ public:
         }
 
         TypedArray<Vector2i> next_ants;
-        TypedArray<int32_t> next_dirs;
+        TypedArray<int> next_dirs;
         TypedArray<Color> next_colors;
 
         bool changed = false;
@@ -461,7 +461,7 @@ public:
                 continue;
             }
 
-            int dir = static_cast<int32_t>(directions[i]) % DIR_COUNT;
+            int dir = static_cast<int>(directions[i]) % DIR_COUNT;
             if (dir < 0) {
                 dir += DIR_COUNT;
             }
@@ -501,7 +501,7 @@ public:
                     break;
             }
 
-            if (!changed && (pos != next || dir != static_cast<int32_t>(directions[i]) || dst[idx] != current)) {
+            if (!changed && (pos != next || dir != static_cast<int>(directions[i]) || dst[idx] != current)) {
                 changed = true;
             }
 
