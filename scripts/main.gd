@@ -3072,7 +3072,7 @@ static func sim_job_totalistic(grid_in: PackedByteArray, grid_size_in: Vector2i,
 		Callable(CellularAutomataHub, "_sim_totalistic_element").bind(grid_in, grid_size_in, edge_mode_in, birth_set, survive_set, next_state, changed_ref, change_mutex),
 		cell_count,
 		_sim_task_count(cell_count),
-		true,
+		false,
 		"sim_totalistic_cells"
 	)
 	if group_id < 0:
@@ -3147,7 +3147,7 @@ static func sim_job_wolfram(grid_in: PackedByteArray, grid_size_in: Vector2i, ru
 		Callable(CellularAutomataHub, "_sim_wolfram_element").bind(grid_in, grid_size_in, edge_mode_in, rule, source_row, wolfram_row_local, next_state, changed_ref, change_mutex),
 		grid_size_in.x,
 		tasks,
-		true,
+		false,
 		"sim_wolfram_cells"
 	)
 	if group_id < 0:
