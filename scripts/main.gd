@@ -2051,7 +2051,9 @@ static func _compute_wolfram(grid_in: PackedByteArray, grid_size_in: Vector2i, r
 		var key: int = (left << 2) | (center << 1) | right
 		var state: int = (rule >> key) & 1
 		next_state[wolfram_row_local * grid_size_in.x + x] = state
-	var next_row: int = allow_wrap ? (wolfram_row_local + 1) % grid_size_in.y : wolfram_row_local + 1
+	var next_row: int = wolfram_row_local + 1
+	if allow_wrap:
+		next_row = (wolfram_row_local + 1) % grid_size_in.y
 	return {"grid": next_state, "row": next_row, "changed": changed}
 
 static func _compute_ants(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array) -> Dictionary:
