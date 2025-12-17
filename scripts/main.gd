@@ -1914,7 +1914,9 @@ func build_sand_image_from_data(size: Vector2i, data: PackedInt32Array, palette:
 	var has_content: bool = false
 	var data_size: int = data.size()
 	for i in range(bytes.size()):
-		var value: int = (data[i] if i < data_size else 0)
+		var value: int = 0
+		if i < data_size:
+			value = data[i]
 		if value > 0:
 			has_content = true
 		var encoded: int = 0
@@ -1940,7 +1942,7 @@ func capture_render_state() -> Dictionary:
 	return {
 		"grid_size": grid_size,
 		"grid": grid,
-		"sand_grid": sand_grid,
+		"sand_grid": sand_grid.duplicate(),
 		"sand_colors": sand_colors.duplicate(true),
 		"ants": ants.duplicate(true),
 		"ant_colors": ant_colors.duplicate(true),
@@ -3044,6 +3046,18 @@ static func _sim_sand_worker(grid_in: PackedInt32Array, grid_size_in: Vector2i, 
 			next[nidx] += 1
 	return {"grid": next, "changed": true}
 
+static func _sim_task_count(cell_count: int) -> int:
+	return max(1, min(cell_count, OS.get_processor_count()))
+
+static func _mark_sim_changed(changed_ref: Array, change_mutex: Mutex) -> void:
+	if changed_ref.is_empty() or change_mutex == null:
+		return
+	if changed_ref[0]:
+		return
+	change_mutex.lock()
+	changed_ref[0] = true
+	change_mutex.unlock()
+
 static func sim_job_totalistic(grid_in: PackedByteArray, grid_size_in: Vector2i, birth: Array, survive: Array, edge_mode_in: int) -> Dictionary:
 	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
 		return {"grid": grid_in, "changed": false}
@@ -3051,28 +3065,41 @@ static func sim_job_totalistic(grid_in: PackedByteArray, grid_size_in: Vector2i,
 	next_state.resize(grid_in.size())
 	var birth_set: Array = birth
 	var survive_set: Array = survive
-	var changed: bool = false
-	for y in range(grid_size_in.y):
-		for x in range(grid_size_in.x):
-			var alive: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x, y)
-			var neighbors: int = 0
-			for dy in range(-1, 2):
-				for dx in range(-1, 2):
-					if dx == 0 and dy == 0:
-						continue
-					neighbors += sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x + dx, y + dy)
-			var new_val: int = 0
-			if alive == 1:
-				if survive_set.has(neighbors):
-					new_val = 1
-			else:
-				if birth_set.has(neighbors):
-					new_val = 1
-			var idx: int = y * grid_size_in.x + x
-			next_state[idx] = new_val
-			if not changed and new_val != grid_in[idx]:
-				changed = true
-	return {"grid": next_state, "changed": changed}
+	var changed_ref: Array = [false]
+	var change_mutex: Mutex = Mutex.new()
+	var cell_count: int = grid_size_in.x * grid_size_in.y
+	var group_id: int = WorkerThreadPool.add_group_task(
+		Callable(CellularAutomataHub, "_sim_totalistic_element").bind(grid_in, grid_size_in, edge_mode_in, birth_set, survive_set, next_state, changed_ref, change_mutex),
+		cell_count,
+		_sim_task_count(cell_count),
+		false,
+		"sim_totalistic_cells"
+	)
+	if group_id < 0:
+		return _sim_totalistic_worker(grid_in, grid_size_in, birth_set, survive_set, edge_mode_in)
+	WorkerThreadPool.wait_for_group_task_completion(group_id)
+	return {"grid": next_state, "changed": changed_ref[0]}
+
+static func _sim_totalistic_element(idx: int, grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, birth_set: Array, survive_set: Array, next_state: PackedByteArray, changed_ref: Array, change_mutex: Mutex) -> void:
+	var x: int = idx % grid_size_in.x
+	var y: int = idx / grid_size_in.x
+	var alive: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x, y)
+	var neighbors: int = 0
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			if dx == 0 and dy == 0:
+				continue
+			neighbors += sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x + dx, y + dy)
+	var new_val: int = 0
+	if alive == 1:
+		if survive_set.has(neighbors):
+			new_val = 1
+	else:
+		if birth_set.has(neighbors):
+			new_val = 1
+	next_state[idx] = new_val
+	if new_val != grid_in[idx]:
+		_mark_sim_changed(changed_ref, change_mutex)
 
 static func sim_job_sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, x: int, y: int) -> int:
 	if x >= 0 and x < grid_size_in.x and y >= 0 and y < grid_size_in.y:
@@ -3113,18 +3140,34 @@ static func sim_job_wolfram(grid_in: PackedByteArray, grid_size_in: Vector2i, ru
 		source_row = grid_size_in.y - 1 if allow_wrap else 0
 	else:
 		source_row = wolfram_row_local - 1
-	var changed: bool = true
-	for x in range(grid_size_in.x):
-		var left: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x - 1, source_row)
-		var center: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x, source_row)
-		var right: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x + 1, source_row)
-		var key: int = (left << 2) | (center << 1) | right
-		var state: int = (rule >> key) & 1
-		next_state[wolfram_row_local * grid_size_in.x + x] = state
+	var changed_ref: Array = [false]
+	var change_mutex: Mutex = Mutex.new()
+	var tasks: int = _sim_task_count(grid_size_in.x)
+	var group_id: int = WorkerThreadPool.add_group_task(
+		Callable(CellularAutomataHub, "_sim_wolfram_element").bind(grid_in, grid_size_in, edge_mode_in, rule, source_row, wolfram_row_local, next_state, changed_ref, change_mutex),
+		grid_size_in.x,
+		tasks,
+		false,
+		"sim_wolfram_cells"
+	)
+	if group_id < 0:
+		return _sim_wolfram_worker(grid_in, grid_size_in, rule, row, edge_mode_in, allow_wrap)
+	WorkerThreadPool.wait_for_group_task_completion(group_id)
 	var next_row: int = wolfram_row_local + 1
 	if allow_wrap:
 		next_row = (wolfram_row_local + 1) % grid_size_in.y
-	return {"grid": next_state, "row": next_row, "changed": changed}
+	return {"grid": next_state, "row": next_row, "changed": changed_ref[0]}
+
+static func _sim_wolfram_element(idx: int, grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, rule: int, source_row: int, target_row: int, next_state: PackedByteArray, changed_ref: Array, change_mutex: Mutex) -> void:
+	var left: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, idx - 1, source_row)
+	var center: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, idx, source_row)
+	var right: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, idx + 1, source_row)
+	var key: int = (left << 2) | (center << 1) | right
+	var state: int = (rule >> key) & 1
+	var dst: int = target_row * grid_size_in.x + idx
+	if next_state[dst] != state:
+		_mark_sim_changed(changed_ref, change_mutex)
+	next_state[dst] = state
 
 static func sim_job_ants(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array) -> Dictionary:
 	var count: int = min(ants_in.size(), dirs_in.size())
