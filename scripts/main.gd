@@ -1909,7 +1909,7 @@ func build_sand_image_from_data(size: Vector2i, data: PackedInt32Array, palette:
 				has_content = true
 			var encoded: int = 0
 			if value > 0:
-				encoded = ((value - 1) % palette_size) + 1
+				encoded = min(value, palette_size)
 			bytes[idx] = encoded
 	img.set_data(size.x, size.y, false, Image.FORMAT_R8, bytes)
 	return {"image": img, "has_content": has_content}
@@ -2149,10 +2149,9 @@ func build_export_image() -> Image:
 			var color: Color = dead_color if grid[idx] == 0 else alive_color
 			if sand_visible and idx < sand_grid.size():
 				var raw: int = sand_grid[idx]
-				var palette_idx: int = clamp(raw - 1, 0, palette_size - 1)
-				if raw <= 0:
-					palette_idx = 0
-				color = sand_colors[palette_idx]
+				if raw > 0:
+					var palette_idx: int = clamp(min(raw, palette_size) - 1, 0, palette_size - 1)
+					color = sand_colors[palette_idx]
 			var pos: Vector2i = Vector2i(x, y)
 			if overlay_map.has(pos):
 				color = overlay_map[pos]

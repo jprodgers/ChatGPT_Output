@@ -30,8 +30,10 @@ void fragment() {
         base_color = mix(dead_color, alive_color, step(0.5, state_value));
         if (sand_visible && sand_palette_size > 0) {
             int raw = int(floor(sand_value * 255.0 + 0.5));
-            int idx = clamp(max(raw - 1, 0), 0, sand_palette_size - 1);
-            base_color = sand_palette[idx];
+            if (raw > 0) {
+                int idx = clamp(min(raw, sand_palette_size) - 1, 0, sand_palette_size - 1);
+                base_color = sand_palette[idx];
+            }
         }
         if (overlay_color.a > 0.0) {
             base_color = overlay_color;
