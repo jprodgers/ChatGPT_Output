@@ -1971,10 +1971,10 @@ func draw_grid_lines_on_image(img: Image) -> void:
 			var py: int = start_y + t
 			if py >= height:
 				continue
-		for px in range(width):
-			img.set_pixel(px, py, grid_line_color)
+			for px in range(width):
+				img.set_pixel(px, py, grid_line_color)
 
-static func _compute_totalistic(grid_in: PackedByteArray, grid_size_in: Vector2i, birth: Array, survive: Array, edge_mode_in: int) -> Dictionary:
+static func _compute_totalistic_secondary(grid_in: PackedByteArray, grid_size_in: Vector2i, birth: Array, survive: Array, edge_mode_in: int) -> Dictionary:
 	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
 		return {"grid": grid_in, "changed": false}
 	var next_state: PackedByteArray = PackedByteArray()
@@ -1984,13 +1984,13 @@ static func _compute_totalistic(grid_in: PackedByteArray, grid_size_in: Vector2i
 	var changed: bool = false
 	for y in range(grid_size_in.y):
 		for x in range(grid_size_in.x):
-			var alive: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x, y)
+			var alive: int = _sample_cell_secondary(grid_in, grid_size_in, edge_mode_in, x, y)
 			var neighbors: int = 0
 			for dy in range(-1, 2):
 				for dx in range(-1, 2):
 					if dx == 0 and dy == 0:
 						continue
-					neighbors += _sample_cell(grid_in, grid_size_in, edge_mode_in, x + dx, y + dy)
+					neighbors += _sample_cell_secondary(grid_in, grid_size_in, edge_mode_in, x + dx, y + dy)
 			var new_val: int = 0
 			if alive == 1:
 				if survive_set.has(neighbors):
@@ -2004,7 +2004,7 @@ static func _compute_totalistic(grid_in: PackedByteArray, grid_size_in: Vector2i
 				changed = true
 	return {"grid": next_state, "changed": changed}
 
-static func _sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, x: int, y: int) -> int:
+static func _sample_cell_secondary(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, x: int, y: int) -> int:
 	if x >= 0 and x < grid_size_in.x and y >= 0 and y < grid_size_in.y:
 		return grid_in[y * grid_size_in.x + x]
 	match edge_mode_in:
@@ -2029,7 +2029,7 @@ static func _sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_
 		_:
 			return 0
 
-static func _compute_wolfram(grid_in: PackedByteArray, grid_size_in: Vector2i, rule: int, row: int, edge_mode_in: int, allow_wrap: bool) -> Dictionary:
+static func _compute_wolfram_secondary(grid_in: PackedByteArray, grid_size_in: Vector2i, rule: int, row: int, edge_mode_in: int, allow_wrap: bool) -> Dictionary:
 	if grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
 		return {"grid": grid_in, "row": row, "changed": false}
 	var wolfram_row_local: int = row
@@ -2045,9 +2045,9 @@ static func _compute_wolfram(grid_in: PackedByteArray, grid_size_in: Vector2i, r
 		source_row = wolfram_row_local - 1
 	var changed: bool = true
 	for x in range(grid_size_in.x):
-		var left: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x - 1, source_row)
-		var center: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x, source_row)
-		var right: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x + 1, source_row)
+		var left: int = _sample_cell_secondary(grid_in, grid_size_in, edge_mode_in, x - 1, source_row)
+		var center: int = _sample_cell_secondary(grid_in, grid_size_in, edge_mode_in, x, source_row)
+		var right: int = _sample_cell_secondary(grid_in, grid_size_in, edge_mode_in, x + 1, source_row)
 		var key: int = (left << 2) | (center << 1) | right
 		var state: int = (rule >> key) & 1
 		next_state[wolfram_row_local * grid_size_in.x + x] = state
@@ -2056,7 +2056,7 @@ static func _compute_wolfram(grid_in: PackedByteArray, grid_size_in: Vector2i, r
 		next_row = (wolfram_row_local + 1) % grid_size_in.y
 	return {"grid": next_state, "row": next_row, "changed": changed}
 
-static func _compute_ants(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array) -> Dictionary:
+static func _compute_ants_secondary(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array) -> Dictionary:
 	var count: int = min(ants_in.size(), dirs_in.size())
 	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y or count <= 0:
 		return {"grid": grid_in, "ants": ants_in, "directions": dirs_in, "colors": colors_in, "changed": false}
@@ -2105,7 +2105,7 @@ static func _compute_ants(grid_in: PackedByteArray, grid_size_in: Vector2i, edge
 			next_colors.append(Color.WHITE)
 	return {"grid": next_grid, "ants": next_ants, "directions": next_dirs, "colors": next_colors, "changed": changed}
 
-static func _compute_turmites(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array, rule: String) -> Dictionary:
+static func _compute_turmites_secondary(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array, rule: String) -> Dictionary:
 	var count: int = min(ants_in.size(), dirs_in.size())
 	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y or count <= 0:
 		return {"grid": grid_in, "ants": ants_in, "directions": dirs_in, "colors": colors_in, "changed": false}
@@ -2158,7 +2158,7 @@ static func _compute_turmites(grid_in: PackedByteArray, grid_size_in: Vector2i, 
 			next_colors.append(Color.WHITE)
 	return {"grid": next_grid, "ants": next_ants, "directions": next_dirs, "colors": next_colors, "changed": changed}
 
-static func _compute_sand(grid_in: PackedInt32Array, grid_size_in: Vector2i, edge_mode_in: int) -> Dictionary:
+static func _compute_sand_secondary(grid_in: PackedInt32Array, grid_size_in: Vector2i, edge_mode_in: int) -> Dictionary:
 	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
 		return {"grid": grid_in, "changed": false}
 	var updates: Array[Vector2i] = []
