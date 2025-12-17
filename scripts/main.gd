@@ -235,8 +235,9 @@ func enforce_integer_spin(spin: SpinBox, min_value: int = 0) -> void:
 		cleaning = true
 		var digits: String = ""
 		for ch in text:
-			if ch.is_digit():
-				digits += ch
+			var char_str: String = String.chr(ch) if ch is int else str(ch)
+			if char_str >= "0" and char_str <= "9":
+				digits += char_str
 		if digits == "":
 			digits = str(min_value)
 		while digits.length() > 1 and digits.begins_with("0"):
