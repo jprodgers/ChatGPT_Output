@@ -2051,6 +2051,23 @@ func update_image_texture(tex: ImageTexture, img: Image) -> ImageTexture:
 
 func _apply_sim_results() -> bool:
 	var changed: bool = false
+	var function _to_vector2_array(raw: Array) -> Array[Vector2i]:
+		var out: Array[Vector2i] = []
+		for v in raw:
+			if v is Vector2i:
+				out.append(v)
+		return out
+	var function _to_color_array(raw: Array) -> Array[Color]:
+		var out: Array[Color] = []
+		for v in raw:
+			if v is Color:
+				out.append(v)
+		return out
+	var function _to_int_array(raw: Array) -> Array[int]:
+		var out: Array[int] = []
+		for v in raw:
+			out.append(int(v))
+		return out
 	var wolfram_result: Dictionary = _take_sim_result("wolfram")
 	if not wolfram_result.is_empty():
 		if wolfram_result.has("grid") and wolfram_result["grid"] is PackedByteArray:
@@ -2070,11 +2087,11 @@ func _apply_sim_results() -> bool:
 		if ants_result.has("grid") and ants_result["grid"] is PackedByteArray:
 			grid = ants_result["grid"]
 		if ants_result.has("ants") and ants_result["ants"] is Array:
-			ants = ants_result["ants"]
+			ants = _to_vector2_array(ants_result["ants"])
 		if ants_result.has("directions") and ants_result["directions"] is Array:
-			ant_directions = ants_result["directions"]
+			ant_directions = _to_int_array(ants_result["directions"])
 		if ants_result.has("colors") and ants_result["colors"] is Array:
-			ant_colors = ants_result["colors"]
+			ant_colors = _to_color_array(ants_result["colors"])
 		if ants_result.get("changed", true):
 			changed = true
 	var turmite_result: Dictionary = _take_sim_result("turmites")
@@ -2082,11 +2099,11 @@ func _apply_sim_results() -> bool:
 		if turmite_result.has("grid") and turmite_result["grid"] is PackedByteArray:
 			grid = turmite_result["grid"]
 		if turmite_result.has("ants") and turmite_result["ants"] is Array:
-			turmites = turmite_result["ants"]
+			turmites = _to_vector2_array(turmite_result["ants"])
 		if turmite_result.has("directions") and turmite_result["directions"] is Array:
-			turmite_directions = turmite_result["directions"]
+			turmite_directions = _to_int_array(turmite_result["directions"])
 		if turmite_result.has("colors") and turmite_result["colors"] is Array:
-			turmite_colors = turmite_result["colors"]
+			turmite_colors = _to_color_array(turmite_result["colors"])
 		if turmite_result.get("changed", true):
 			changed = true
 	var sand_result: Dictionary = _take_sim_result("sand")
@@ -3165,6 +3182,8 @@ static func _sim_wolfram_element(idx: int, grid_in: PackedByteArray, grid_size_i
 	var key: int = (left << 2) | (center << 1) | right
 	var state: int = (rule >> key) & 1
 	var dst: int = target_row * grid_size_in.x + idx
+	if dst < 0 or dst >= next_state.size():
+		return
 	if next_state[dst] != state:
 		_mark_sim_changed(changed_ref, change_mutex)
 	next_state[dst] = state
