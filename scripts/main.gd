@@ -9,6 +9,7 @@ const EDGE_FALLOFF: int = 2
 
 const DRAW_MODE_PAINT: int = 0
 const DRAW_MODE_ERASE: int = 1
+const DRAW_MODE_TOGGLE: int = 2
 
 var cell_size: int = 8
 var grid_size: Vector2i = Vector2i.ZERO
@@ -753,13 +754,14 @@ func build_grid_controls() -> VBoxContainer:
 	draw_mode_option.clear()
 	draw_mode_option.add_item("Paint", DRAW_MODE_PAINT)
 	draw_mode_option.add_item("Erase", DRAW_MODE_ERASE)
+	draw_mode_option.add_item("Toggle", DRAW_MODE_TOGGLE)
 	draw_mode_option.select(draw_mode)
 	draw_mode_option.item_selected.connect(func(index: int) -> void:
 		draw_mode = draw_mode_option.get_item_id(index)
 	)
 	draw_row.add_child(draw_mode_option)
 	register_help(draw_toggle, "Enable freehand drawing on the grid. Hold left click (or touch) to paint while enabled.")
-	register_help(draw_mode_option, "Choose whether drawing paints live cells or erases existing contents.")
+	register_help(draw_mode_option, "Choose whether drawing paints live cells, erases them, or toggles the current state.")
 	box.add_child(draw_row)
 
 	var fill_row: HBoxContainer = HBoxContainer.new()
@@ -1421,12 +1423,20 @@ func apply_draw_action(pos: Vector2i) -> bool:
 		return false
 	var idx: int = pos.y * grid_size.x + pos.x
 	var changed: bool = false
-	if grid[idx] != 1:
+	if draw_mode == DRAW_MODE_TOGGLE:
+		var new_val: int = 1 if grid[idx] == 0 else 0
+		if grid[idx] != new_val:
+			grid[idx] = new_val
+			changed = true
+	elif grid[idx] != 1:
 		grid[idx] = 1
 		changed = true
+
 	if sand_grid.size() > idx and sand_grid[idx] != 0:
 		sand_grid[idx] = 0
+		sand_has_content = sand_grid_has_content()
 		changed = true
+
 	changed = remove_ants_at(pos) or changed
 	changed = remove_turmites_at(pos) or changed
 	return changed
@@ -1899,18 +1909,15 @@ func build_sand_image_from_data(size: Vector2i, data: PackedInt32Array, palette:
 	bytes.resize(size.x * size.y)
 	var palette_size: int = max(1, palette.size())
 	var has_content: bool = false
-	for y in range(size.y):
-		for x in range(size.x):
-			var idx: int = y * size.x + x
-			if idx >= data.size():
-				continue
-			var value: int = data[idx]
-			if value > 0:
-				has_content = true
-			var encoded: int = 0
-			if value > 0:
-				encoded = min(value, palette_size)
-			bytes[idx] = encoded
+	var limit: int = min(data.size(), bytes.size())
+	for i in range(limit):
+		var value: int = data[i]
+		if value > 0:
+			has_content = true
+		var encoded: int = 0
+		if value > 0:
+			encoded = min(value, palette_size)
+		bytes[i] = encoded
 	img.set_data(size.x, size.y, false, Image.FORMAT_R8, bytes)
 	return {"image": img, "has_content": has_content}
 
