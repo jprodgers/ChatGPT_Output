@@ -1841,6 +1841,9 @@ func add_sand_to_center(amount: int) -> void:
 	add_sand_at(center, amount)
 
 func clear_sand() -> void:
+	var expected: int = grid_size.x * grid_size.y
+	if sand_grid.size() != expected:
+		sand_grid.resize(expected)
 	sand_grid.fill(0)
 	sand_accumulator = 0.0
 	sand_has_content = false
@@ -1909,9 +1912,9 @@ func build_sand_image_from_data(size: Vector2i, data: PackedInt32Array, palette:
 	bytes.resize(size.x * size.y)
 	var palette_size: int = max(1, palette.size())
 	var has_content: bool = false
-	var limit: int = min(data.size(), bytes.size())
-	for i in range(limit):
-		var value: int = data[i]
+	var data_size: int = data.size()
+	for i in range(bytes.size()):
+		var value: int = (data[i] if i < data_size else 0)
 		if value > 0:
 			has_content = true
 		var encoded: int = 0
