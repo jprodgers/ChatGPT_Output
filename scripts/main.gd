@@ -243,6 +243,7 @@ func _ready() -> void:
 	initialize_native_automata()
 	set_sand_palette_by_name(sand_palette_name)
 	build_ui()
+	help_panel.visible = true
 	call_deferred("initialize_grid")
 
 func initialize_native_automata() -> void:
@@ -481,7 +482,7 @@ func build_ui() -> void:
 	controls_column.add_child(build_collapsible_section("Export", build_export_controls(), "Set a filename pattern and export the current view to a PNG file."))
 	controls_column.add_child(build_collapsible_section("Wolfram", build_wolfram_controls(), "1D cellular automaton using Wolfram rules. Seed a row, then press Step or enable Auto to watch the rows accumulate."))
 	controls_column.add_child(build_collapsible_section("Langton's Ant", build_ant_controls(), "Spawn ants that turn right on black and left on white, flipping the cell each time. Use Auto to let them roam or Step for manual moves."))
-	controls_column.add_child(build_collapsible_section("Turmite", build_turmite_controls(), "Generalized Langton ants that follow custom turn rules. Spawn turmites, then Step or enable Auto to see their trails."))
+	controls_column.add_child(build_collapsible_section("Turmite", build_turmite_controls(), "Generalized 2D automata that follow custom turn rules, like Langton's ant, but more options. Spawn turmites, then Step or enable Auto to see their trails."))
 	controls_column.add_child(build_collapsible_section("Game of Life", build_gol_controls(), "Conway's Game of Life. Set a step rate, seed the grid, then Auto or Step to evolve the pattern."))
 	controls_column.add_child(build_collapsible_section("Day & Night", build_day_night_controls(), "Day & Night variant of Life with symmetric rules. Seed the grid, then Step or Auto to run the simulation."))
 	controls_column.add_child(build_collapsible_section("Seeds", build_seeds_controls(), "Seeds automaton (birth on 2, no survival). Populate the grid and use Step or Auto to advance."))
@@ -562,7 +563,7 @@ func build_grid_controls() -> VBoxContainer:
 		request_render()
 	)
 	size_row.add_child(cell_size_spin)
-	register_help(cell_size_spin, "Set the pixel size of each cell. Larger values make the grid coarser and easier to see.")
+	register_help(cell_size_spin, "Set the pixel size of each cell. Smaller values give you a larger grid, which will cause your computer to slow down considerably. Larger values make the grid coarser and easier to see and run faster.")
 	box.add_child(size_row)
 
 	var global_rate_row: HBoxContainer = HBoxContainer.new()
@@ -577,7 +578,7 @@ func build_grid_controls() -> VBoxContainer:
 	global_rate_spin.value = global_rate
 	global_rate_spin.value_changed.connect(func(v: float) -> void: global_rate = max(0.0, v))
 	global_rate_row.add_child(global_rate_spin)
-	register_help(global_rate_spin, "Set the global updates per second multiplier. Arrows now change whole numbers, but you can still type precise decimals.")
+	register_help(global_rate_spin, "Set the global updates per second multiplier.")
 	box.add_child(global_rate_row)
 
 	var edge_row: HBoxContainer = HBoxContainer.new()
@@ -761,7 +762,7 @@ func build_wolfram_controls() -> VBoxContainer:
 	rule_spin.value = wolfram_rule
 	rule_spin.value_changed.connect(func(v: float) -> void: wolfram_rule = int(v))
 	rule_row.add_child(rule_spin)
-	register_help(rule_spin, "Pick a Wolfram elementary rule (0-255). Classic fractals start at 30 and 110.")
+	register_help(rule_spin, "Pick a Wolfram elementary rule (0-255). Some popular fractals start at 18, 30 and 110.")
 	box.add_child(rule_row)
 
 	var rate_row: HBoxContainer = HBoxContainer.new()
@@ -775,7 +776,7 @@ func build_wolfram_controls() -> VBoxContainer:
 	wolfram_rate_spin.allow_greater = true
 	wolfram_rate_spin.value_changed.connect(func(v: float) -> void: wolfram_rate = max(0.0, v))
 	rate_row.add_child(wolfram_rate_spin)
-	register_help(wolfram_rate_spin, "Set how many Wolfram rows to generate each global update. Use arrows for whole numbers or type precise decimals.")
+	register_help(wolfram_rate_spin, "Set how many Wolfram rows to generate each global update.")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -856,7 +857,7 @@ func build_ant_controls() -> VBoxContainer:
 	ant_rate_spin.allow_greater = true
 	ant_rate_spin.value_changed.connect(func(v: float) -> void: ant_rate = max(0.0, v))
 	rate_row.add_child(ant_rate_spin)
-	register_help(ant_rate_spin, "Steps each ant takes per global update. Arrows change whole steps; type decimals for finer control.")
+	register_help(ant_rate_spin, "Steps each ant takes per global update.")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -898,7 +899,7 @@ func build_gol_controls() -> VBoxContainer:
 	gol_rate_spin.allow_greater = true
 	gol_rate_spin.value_changed.connect(func(v: float) -> void: gol_rate = max(0.0, v))
 	rate_row.add_child(gol_rate_spin)
-	register_help(gol_rate_spin, "Number of Game of Life steps performed per global update. Arrows change whole steps, decimals allowed by typing.")
+	register_help(gol_rate_spin, "Number of Game of Life steps performed per global update.")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -932,7 +933,7 @@ func build_day_night_controls() -> VBoxContainer:
 	day_night_rate_spin.allow_greater = true
 	day_night_rate_spin.value_changed.connect(func(v: float) -> void: day_night_rate = max(0.0, v))
 	rate_row.add_child(day_night_rate_spin)
-	register_help(day_night_rate_spin, "Steps run for the Day & Night rules per global update. Arrows change whole steps; decimals can be typed.")
+	register_help(day_night_rate_spin, "Steps run for the Day & Night rules per global update.")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -966,7 +967,7 @@ func build_seeds_controls() -> VBoxContainer:
 	seeds_rate_spin.allow_greater = true
 	seeds_rate_spin.value_changed.connect(func(v: float) -> void: seeds_rate = max(0.0, v))
 	rate_row.add_child(seeds_rate_spin)
-	register_help(seeds_rate_spin, "Steps per global update for the Seeds automaton. Arrow keys change whole steps; type decimals for finer control.")
+	register_help(seeds_rate_spin, "Steps per global update for the Seeds automaton.")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -1072,7 +1073,7 @@ func build_sand_controls() -> VBoxContainer:
 	sand_rate_spin.value = sand_rate
 	sand_rate_spin.value_changed.connect(func(v: float) -> void: sand_rate = max(0.0, v))
 	rate_row.add_child(sand_rate_spin)
-	register_help(sand_rate_spin, "Number of sandpile relaxation steps per global update. Arrows change whole steps; type decimals if needed.")
+	register_help(sand_rate_spin, "Number of sandpile relaxation steps per global update.")
 	box.add_child(rate_row)
 
 	var buttons: HBoxContainer = HBoxContainer.new()
@@ -3265,14 +3266,6 @@ func on_grid_gui_input(event: InputEvent) -> void:
 		accept_event()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey:
-		var key_event: InputEventKey = event as InputEventKey
-		if key_event.pressed and not key_event.echo and key_event.keycode == KEY_SPACE:
-			is_paused = !is_paused
-			if play_button != null:
-				play_button.text = "Play" if is_paused else "Pause"
-			accept_event()
-			return
 	if not draw_enabled:
 		return
 	if event is InputEventMouseButton:
