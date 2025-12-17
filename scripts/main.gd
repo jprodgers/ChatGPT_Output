@@ -1942,7 +1942,7 @@ func capture_render_state() -> Dictionary:
 	return {
 		"grid_size": grid_size,
 		"grid": grid,
-		"sand_grid": sand_grid,
+		"sand_grid": sand_grid.duplicate(),
 		"sand_colors": sand_colors.duplicate(true),
 		"ants": ants.duplicate(true),
 		"ant_colors": ant_colors.duplicate(true),
