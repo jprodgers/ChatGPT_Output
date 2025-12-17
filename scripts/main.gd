@@ -1971,8 +1971,8 @@ func draw_grid_lines_on_image(img: Image) -> void:
 			var py: int = start_y + t
 			if py >= height:
 				continue
-		for px in range(width):
-			img.set_pixel(px, py, grid_line_color)
+			for px in range(width):
+				img.set_pixel(px, py, grid_line_color)
 
 static func _compute_totalistic_secondary(grid_in: PackedByteArray, grid_size_in: Vector2i, birth: Array, survive: Array, edge_mode_in: int) -> Dictionary:
 	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
