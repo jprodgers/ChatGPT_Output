@@ -1914,7 +1914,9 @@ func build_sand_image_from_data(size: Vector2i, data: PackedInt32Array, palette:
 	var has_content: bool = false
 	var data_size: int = data.size()
 	for i in range(bytes.size()):
-		var value: int = (data[i] if i < data_size else 0)
+		var value: int = 0
+		if i < data_size:
+			value = data[i]
 		if value > 0:
 			has_content = true
 		var encoded: int = 0
