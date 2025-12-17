@@ -1971,8 +1971,864 @@ func draw_grid_lines_on_image(img: Image) -> void:
 			var py: int = start_y + t
 			if py >= height:
 				continue
-			for px in range(width):
-				img.set_pixel(px, py, grid_line_color)
+		for px in range(width):
+			img.set_pixel(px, py, grid_line_color)
+
+static func _compute_totalistic(grid_in: PackedByteArray, grid_size_in: Vector2i, birth: Array, survive: Array, edge_mode_in: int) -> Dictionary:
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+		return {"grid": grid_in, "changed": false}
+	var next_state: PackedByteArray = PackedByteArray()
+	next_state.resize(grid_in.size())
+	var birth_set: Array = birth
+	var survive_set: Array = survive
+	var changed: bool = false
+	for y in range(grid_size_in.y):
+		for x in range(grid_size_in.x):
+			var alive: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x, y)
+			var neighbors: int = 0
+			for dy in range(-1, 2):
+				for dx in range(-1, 2):
+					if dx == 0 and dy == 0:
+						continue
+					neighbors += _sample_cell(grid_in, grid_size_in, edge_mode_in, x + dx, y + dy)
+			var new_val: int = 0
+			if alive == 1:
+				if survive_set.has(neighbors):
+					new_val = 1
+			else:
+				if birth_set.has(neighbors):
+					new_val = 1
+			var idx: int = y * grid_size_in.x + x
+			next_state[idx] = new_val
+			if not changed and new_val != grid_in[idx]:
+				changed = true
+	return {"grid": next_state, "changed": changed}
+
+static func _sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, x: int, y: int) -> int:
+	if x >= 0 and x < grid_size_in.x and y >= 0 and y < grid_size_in.y:
+		return grid_in[y * grid_size_in.x + x]
+	match edge_mode_in:
+		EDGE_WRAP:
+			var nx: int = posmod(x, grid_size_in.x)
+			var ny: int = posmod(y, grid_size_in.y)
+			return grid_in[ny * grid_size_in.x + nx]
+		EDGE_BOUNCE:
+			var bounce_x: int = x
+			var bounce_y: int = y
+			if bounce_x < 0:
+				bounce_x = -bounce_x - 1
+			elif bounce_x >= grid_size_in.x:
+				bounce_x = grid_size_in.x - (bounce_x - grid_size_in.x) - 1
+			if bounce_y < 0:
+				bounce_y = -bounce_y - 1
+			elif bounce_y >= grid_size_in.y:
+				bounce_y = grid_size_in.y - (bounce_y - grid_size_in.y) - 1
+			bounce_x = clamp(bounce_x, 0, grid_size_in.x - 1)
+			bounce_y = clamp(bounce_y, 0, grid_size_in.y - 1)
+			return grid_in[bounce_y * grid_size_in.x + bounce_x]
+		_:
+			return 0
+
+static func _compute_wolfram(grid_in: PackedByteArray, grid_size_in: Vector2i, rule: int, row: int, edge_mode_in: int, allow_wrap: bool) -> Dictionary:
+	if grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+		return {"grid": grid_in, "row": row, "changed": false}
+	var wolfram_row_local: int = row
+	if allow_wrap and grid_size_in.y > 0:
+		wolfram_row_local = wolfram_row_local % grid_size_in.y
+	if wolfram_row_local >= grid_size_in.y and not allow_wrap:
+		return {"grid": grid_in, "row": wolfram_row_local, "changed": false}
+	var next_state: PackedByteArray = grid_in
+	var source_row: int = 0
+	if wolfram_row_local <= 0:
+		source_row = grid_size_in.y - 1 if allow_wrap else 0
+	else:
+		source_row = wolfram_row_local - 1
+	var changed: bool = true
+	for x in range(grid_size_in.x):
+		var left: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x - 1, source_row)
+		var center: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x, source_row)
+		var right: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x + 1, source_row)
+		var key: int = (left << 2) | (center << 1) | right
+		var state: int = (rule >> key) & 1
+		next_state[wolfram_row_local * grid_size_in.x + x] = state
+	var next_row: int = wolfram_row_local + 1
+	if allow_wrap:
+		next_row = (wolfram_row_local + 1) % grid_size_in.y
+	return {"grid": next_state, "row": next_row, "changed": changed}
+
+static func _compute_ants(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array) -> Dictionary:
+	var count: int = min(ants_in.size(), dirs_in.size())
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y or count <= 0:
+		return {"grid": grid_in, "ants": ants_in, "directions": dirs_in, "colors": colors_in, "changed": false}
+	var next_grid: PackedByteArray = grid_in
+	var next_ants: Array = []
+	var next_dirs: Array = []
+	var next_colors: Array = []
+	var changed: bool = false
+	for i in range(count):
+		var pos: Vector2i = ants_in[i]
+		if pos.x < 0 or pos.x >= grid_size_in.x or pos.y < 0 or pos.y >= grid_size_in.y:
+			changed = true
+			continue
+		var dir: int = int(dirs_in[i]) % DIRS.size()
+		if dir < 0:
+			dir += DIRS.size()
+		var idx: int = pos.y * grid_size_in.x + pos.x
+		var current: int = next_grid[idx]
+		if current == 1:
+			dir = (dir + 1) % DIRS.size()
+			next_grid[idx] = 0
+		else:
+			dir = (dir + DIRS.size() - 1) % DIRS.size()
+			next_grid[idx] = 1
+		var next: Vector2i = pos + DIRS[dir]
+		match edge_mode_in:
+			EDGE_WRAP:
+				next = Vector2i(posmod(next.x, grid_size_in.x), posmod(next.y, grid_size_in.y))
+			EDGE_BOUNCE:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					dir = (dir + 2) % DIRS.size()
+					next = pos + DIRS[dir]
+					next.x = clamp(next.x, 0, grid_size_in.x - 1)
+					next.y = clamp(next.y, 0, grid_size_in.y - 1)
+			EDGE_FALLOFF:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					changed = true
+					continue
+		if not changed and (pos != next or dir != int(dirs_in[i]) or next_grid[idx] != current):
+			changed = true
+		next_ants.append(next)
+		next_dirs.append(dir)
+		if i < colors_in.size():
+			next_colors.append(colors_in[i])
+		else:
+			next_colors.append(Color.WHITE)
+	return {"grid": next_grid, "ants": next_ants, "directions": next_dirs, "colors": next_colors, "changed": changed}
+
+static func _compute_turmites(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array, rule: String) -> Dictionary:
+	var count: int = min(ants_in.size(), dirs_in.size())
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y or count <= 0:
+		return {"grid": grid_in, "ants": ants_in, "directions": dirs_in, "colors": colors_in, "changed": false}
+	var next_grid: PackedByteArray = grid_in
+	var rule_upper: String = rule.to_upper()
+	if rule_upper.length() < 2:
+		rule_upper = "RL"
+	var next_ants: Array = []
+	var next_dirs: Array = []
+	var next_colors: Array = []
+	var changed: bool = false
+	for i in range(count):
+		var pos: Vector2i = ants_in[i]
+		if pos.x < 0 or pos.x >= grid_size_in.x or pos.y < 0 or pos.y >= grid_size_in.y:
+			changed = true
+			continue
+		var dir: int = int(dirs_in[i]) % DIRS.size()
+		if dir < 0:
+			dir += DIRS.size()
+		var idx: int = pos.y * grid_size_in.x + pos.x
+		var current: int = next_grid[idx]
+		var rule_idx: int = clamp(current, 0, rule_upper.length() - 1)
+		var turn: String = rule_upper[rule_idx]
+		if turn == "R":
+			dir = (dir + 1) % DIRS.size()
+		else:
+			dir = (dir + DIRS.size() - 1) % DIRS.size()
+		next_grid[idx] = 1 - current
+		var next: Vector2i = pos + DIRS[dir]
+		match edge_mode_in:
+			EDGE_WRAP:
+				next = Vector2i(posmod(next.x, grid_size_in.x), posmod(next.y, grid_size_in.y))
+			EDGE_BOUNCE:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					dir = (dir + 2) % DIRS.size()
+					next = pos + DIRS[dir]
+					next.x = clamp(next.x, 0, grid_size_in.x - 1)
+					next.y = clamp(next.y, 0, grid_size_in.y - 1)
+			EDGE_FALLOFF:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					changed = true
+					continue
+		if not changed and (pos != next or dir != int(dirs_in[i]) or next_grid[idx] != current):
+			changed = true
+		next_ants.append(next)
+		next_dirs.append(dir)
+		if i < colors_in.size():
+			next_colors.append(colors_in[i])
+		else:
+			next_colors.append(Color.WHITE)
+	return {"grid": next_grid, "ants": next_ants, "directions": next_dirs, "colors": next_colors, "changed": changed}
+
+static func _compute_sand(grid_in: PackedInt32Array, grid_size_in: Vector2i, edge_mode_in: int) -> Dictionary:
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+		return {"grid": grid_in, "changed": false}
+	var updates: Array[Vector2i] = []
+	for y in range(grid_size_in.y):
+		for x in range(grid_size_in.x):
+			var idx: int = y * grid_size_in.x + x
+			if grid_in[idx] >= 4:
+				updates.append(Vector2i(x, y))
+	if updates.is_empty():
+		return {"grid": grid_in, "changed": false}
+	var next: PackedInt32Array = grid_in
+	for pos in updates:
+		var idx: int = pos.y * grid_size_in.x + pos.x
+		next[idx] -= 4
+		for dir in DIRS:
+			var npos: Vector2i = pos + dir
+			match edge_mode_in:
+				EDGE_WRAP:
+					npos = Vector2i(posmod(npos.x, grid_size_in.x), posmod(npos.y, grid_size_in.y))
+				EDGE_BOUNCE:
+					npos.x = clamp(npos.x, 0, grid_size_in.x - 1)
+					npos.y = clamp(npos.y, 0, grid_size_in.y - 1)
+				EDGE_FALLOFF:
+					if npos.x < 0 or npos.x >= grid_size_in.x or npos.y < 0 or npos.y >= grid_size_in.y:
+						continue
+			var nidx: int = npos.y * grid_size_in.x + npos.x
+			next[nidx] += 1
+	return {"grid": next, "changed": true}
+
+static func _compute_totalistic(grid_in: PackedByteArray, grid_size_in: Vector2i, birth: Array, survive: Array, edge_mode_in: int) -> Dictionary:
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+		return {"grid": grid_in, "changed": false}
+	var next_state: PackedByteArray = PackedByteArray()
+	next_state.resize(grid_in.size())
+	var birth_set: Array = birth
+	var survive_set: Array = survive
+	var changed: bool = false
+	for y in range(grid_size_in.y):
+		for x in range(grid_size_in.x):
+			var alive: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x, y)
+			var neighbors: int = 0
+			for dy in range(-1, 2):
+				for dx in range(-1, 2):
+					if dx == 0 and dy == 0:
+						continue
+					neighbors += _sample_cell(grid_in, grid_size_in, edge_mode_in, x + dx, y + dy)
+			var new_val: int = 0
+			if alive == 1:
+				if survive_set.has(neighbors):
+					new_val = 1
+			else:
+				if birth_set.has(neighbors):
+					new_val = 1
+			var idx: int = y * grid_size_in.x + x
+			next_state[idx] = new_val
+			if not changed and new_val != grid_in[idx]:
+				changed = true
+	return {"grid": next_state, "changed": changed}
+
+static func _sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, x: int, y: int) -> int:
+	if x >= 0 and x < grid_size_in.x and y >= 0 and y < grid_size_in.y:
+		return grid_in[y * grid_size_in.x + x]
+	match edge_mode_in:
+		EDGE_WRAP:
+			var nx: int = posmod(x, grid_size_in.x)
+			var ny: int = posmod(y, grid_size_in.y)
+			return grid_in[ny * grid_size_in.x + nx]
+		EDGE_BOUNCE:
+			var bounce_x: int = x
+			var bounce_y: int = y
+			if bounce_x < 0:
+				bounce_x = -bounce_x - 1
+			elif bounce_x >= grid_size_in.x:
+				bounce_x = grid_size_in.x - (bounce_x - grid_size_in.x) - 1
+			if bounce_y < 0:
+				bounce_y = -bounce_y - 1
+			elif bounce_y >= grid_size_in.y:
+				bounce_y = grid_size_in.y - (bounce_y - grid_size_in.y) - 1
+			bounce_x = clamp(bounce_x, 0, grid_size_in.x - 1)
+			bounce_y = clamp(bounce_y, 0, grid_size_in.y - 1)
+			return grid_in[bounce_y * grid_size_in.x + bounce_x]
+		_:
+			return 0
+
+static func _compute_wolfram(grid_in: PackedByteArray, grid_size_in: Vector2i, rule: int, row: int, edge_mode_in: int, allow_wrap: bool) -> Dictionary:
+	if grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+		return {"grid": grid_in, "row": row, "changed": false}
+	var wolfram_row_local: int = row
+	if allow_wrap and grid_size_in.y > 0:
+		wolfram_row_local = wolfram_row_local % grid_size_in.y
+	if wolfram_row_local >= grid_size_in.y and not allow_wrap:
+		return {"grid": grid_in, "row": wolfram_row_local, "changed": false}
+	var next_state: PackedByteArray = grid_in
+	var source_row: int = 0
+	if wolfram_row_local <= 0:
+		source_row = grid_size_in.y - 1 if allow_wrap else 0
+	else:
+		source_row = wolfram_row_local - 1
+	var changed: bool = true
+	for x in range(grid_size_in.x):
+		var left: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x - 1, source_row)
+		var center: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x, source_row)
+		var right: int = _sample_cell(grid_in, grid_size_in, edge_mode_in, x + 1, source_row)
+		var key: int = (left << 2) | (center << 1) | right
+		var state: int = (rule >> key) & 1
+		next_state[wolfram_row_local * grid_size_in.x + x] = state
+	var next_row: int = wolfram_row_local + 1
+	if allow_wrap:
+		next_row = (wolfram_row_local + 1) % grid_size_in.y
+	return {"grid": next_state, "row": next_row, "changed": changed}
+
+static func _compute_ants(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array) -> Dictionary:
+	var count: int = min(ants_in.size(), dirs_in.size())
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y or count <= 0:
+		return {"grid": grid_in, "ants": ants_in, "directions": dirs_in, "colors": colors_in, "changed": false}
+	var next_grid: PackedByteArray = grid_in
+	var next_ants: Array = []
+	var next_dirs: Array = []
+	var next_colors: Array = []
+	var changed: bool = false
+	for i in range(count):
+		var pos: Vector2i = ants_in[i]
+		if pos.x < 0 or pos.x >= grid_size_in.x or pos.y < 0 or pos.y >= grid_size_in.y:
+			changed = true
+			continue
+		var dir: int = int(dirs_in[i]) % DIRS.size()
+		if dir < 0:
+			dir += DIRS.size()
+		var idx: int = pos.y * grid_size_in.x + pos.x
+		var current: int = next_grid[idx]
+		if current == 1:
+			dir = (dir + 1) % DIRS.size()
+			next_grid[idx] = 0
+		else:
+			dir = (dir + DIRS.size() - 1) % DIRS.size()
+			next_grid[idx] = 1
+		var next: Vector2i = pos + DIRS[dir]
+		match edge_mode_in:
+			EDGE_WRAP:
+				next = Vector2i(posmod(next.x, grid_size_in.x), posmod(next.y, grid_size_in.y))
+			EDGE_BOUNCE:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					dir = (dir + 2) % DIRS.size()
+					next = pos + DIRS[dir]
+					next.x = clamp(next.x, 0, grid_size_in.x - 1)
+					next.y = clamp(next.y, 0, grid_size_in.y - 1)
+			EDGE_FALLOFF:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					changed = true
+					continue
+		if not changed and (pos != next or dir != int(dirs_in[i]) or next_grid[idx] != current):
+			changed = true
+		next_ants.append(next)
+		next_dirs.append(dir)
+		if i < colors_in.size():
+			next_colors.append(colors_in[i])
+		else:
+			next_colors.append(Color.WHITE)
+	return {"grid": next_grid, "ants": next_ants, "directions": next_dirs, "colors": next_colors, "changed": changed}
+
+static func _compute_turmites(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array, rule: String) -> Dictionary:
+	var count: int = min(ants_in.size(), dirs_in.size())
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y or count <= 0:
+		return {"grid": grid_in, "ants": ants_in, "directions": dirs_in, "colors": colors_in, "changed": false}
+	var next_grid: PackedByteArray = grid_in
+	var rule_upper: String = rule.to_upper()
+	if rule_upper.length() < 2:
+		rule_upper = "RL"
+	var next_ants: Array = []
+	var next_dirs: Array = []
+	var next_colors: Array = []
+	var changed: bool = false
+	for i in range(count):
+		var pos: Vector2i = ants_in[i]
+		if pos.x < 0 or pos.x >= grid_size_in.x or pos.y < 0 or pos.y >= grid_size_in.y:
+			changed = true
+			continue
+		var dir: int = int(dirs_in[i]) % DIRS.size()
+		if dir < 0:
+			dir += DIRS.size()
+		var idx: int = pos.y * grid_size_in.x + pos.x
+		var current: int = next_grid[idx]
+		var rule_idx: int = clamp(current, 0, rule_upper.length() - 1)
+		var turn: String = rule_upper[rule_idx]
+		if turn == "R":
+			dir = (dir + 1) % DIRS.size()
+		else:
+			dir = (dir + DIRS.size() - 1) % DIRS.size()
+		next_grid[idx] = 1 - current
+		var next: Vector2i = pos + DIRS[dir]
+		match edge_mode_in:
+			EDGE_WRAP:
+				next = Vector2i(posmod(next.x, grid_size_in.x), posmod(next.y, grid_size_in.y))
+			EDGE_BOUNCE:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					dir = (dir + 2) % DIRS.size()
+					next = pos + DIRS[dir]
+					next.x = clamp(next.x, 0, grid_size_in.x - 1)
+					next.y = clamp(next.y, 0, grid_size_in.y - 1)
+			EDGE_FALLOFF:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					changed = true
+					continue
+		if not changed and (pos != next or dir != int(dirs_in[i]) or next_grid[idx] != current):
+			changed = true
+		next_ants.append(next)
+		next_dirs.append(dir)
+		if i < colors_in.size():
+			next_colors.append(colors_in[i])
+		else:
+			next_colors.append(Color.WHITE)
+	return {"grid": next_grid, "ants": next_ants, "directions": next_dirs, "colors": next_colors, "changed": changed}
+
+static func _compute_sand(grid_in: PackedInt32Array, grid_size_in: Vector2i, edge_mode_in: int) -> Dictionary:
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+		return {"grid": grid_in, "changed": false}
+	var updates: Array[Vector2i] = []
+	for y in range(grid_size_in.y):
+		for x in range(grid_size_in.x):
+			var idx: int = y * grid_size_in.x + x
+			if grid_in[idx] >= 4:
+				updates.append(Vector2i(x, y))
+	if updates.is_empty():
+		return {"grid": grid_in, "changed": false}
+	var next: PackedInt32Array = grid_in
+	for pos in updates:
+		var idx: int = pos.y * grid_size_in.x + pos.x
+		next[idx] -= 4
+		for dir in DIRS:
+			var npos: Vector2i = pos + dir
+			match edge_mode_in:
+				EDGE_WRAP:
+					npos = Vector2i(posmod(npos.x, grid_size_in.x), posmod(npos.y, grid_size_in.y))
+				EDGE_BOUNCE:
+					npos.x = clamp(npos.x, 0, grid_size_in.x - 1)
+					npos.y = clamp(npos.y, 0, grid_size_in.y - 1)
+				EDGE_FALLOFF:
+					if npos.x < 0 or npos.x >= grid_size_in.x or npos.y < 0 or npos.y >= grid_size_in.y:
+						continue
+			var nidx: int = npos.y * grid_size_in.x + npos.x
+			next[nidx] += 1
+	return {"grid": next, "changed": true}
+
+static func _thread_compute_totalistic(grid_in: PackedByteArray, grid_size_in: Vector2i, birth: Array, survive: Array, edge_mode_in: int) -> Dictionary:
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+		return {"grid": grid_in, "changed": false}
+	var next_state: PackedByteArray = PackedByteArray()
+	next_state.resize(grid_in.size())
+	var birth_set: Array = birth
+	var survive_set: Array = survive
+	var changed: bool = false
+	for y in range(grid_size_in.y):
+		for x in range(grid_size_in.x):
+			var alive: int = _thread_sample_cell(grid_in, grid_size_in, edge_mode_in, x, y)
+			var neighbors: int = 0
+			for dy in range(-1, 2):
+				for dx in range(-1, 2):
+					if dx == 0 and dy == 0:
+						continue
+					neighbors += _thread_sample_cell(grid_in, grid_size_in, edge_mode_in, x + dx, y + dy)
+			var new_val: int = 0
+			if alive == 1:
+				if survive_set.has(neighbors):
+					new_val = 1
+			else:
+				if birth_set.has(neighbors):
+					new_val = 1
+			var idx: int = y * grid_size_in.x + x
+			next_state[idx] = new_val
+			if not changed and new_val != grid_in[idx]:
+				changed = true
+	return {"grid": next_state, "changed": changed}
+
+static func _thread_sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, x: int, y: int) -> int:
+	if x >= 0 and x < grid_size_in.x and y >= 0 and y < grid_size_in.y:
+		return grid_in[y * grid_size_in.x + x]
+	match edge_mode_in:
+		EDGE_WRAP:
+			var nx: int = posmod(x, grid_size_in.x)
+			var ny: int = posmod(y, grid_size_in.y)
+			return grid_in[ny * grid_size_in.x + nx]
+		EDGE_BOUNCE:
+			var bounce_x: int = x
+			var bounce_y: int = y
+			if bounce_x < 0:
+				bounce_x = -bounce_x - 1
+			elif bounce_x >= grid_size_in.x:
+				bounce_x = grid_size_in.x - (bounce_x - grid_size_in.x) - 1
+			if bounce_y < 0:
+				bounce_y = -bounce_y - 1
+			elif bounce_y >= grid_size_in.y:
+				bounce_y = grid_size_in.y - (bounce_y - grid_size_in.y) - 1
+			bounce_x = clamp(bounce_x, 0, grid_size_in.x - 1)
+			bounce_y = clamp(bounce_y, 0, grid_size_in.y - 1)
+			return grid_in[bounce_y * grid_size_in.x + bounce_x]
+		_:
+			return 0
+
+static func _thread_compute_wolfram(grid_in: PackedByteArray, grid_size_in: Vector2i, rule: int, row: int, edge_mode_in: int, allow_wrap: bool) -> Dictionary:
+	if grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+		return {"grid": grid_in, "row": row, "changed": false}
+	var wolfram_row_local: int = row
+	if allow_wrap and grid_size_in.y > 0:
+		wolfram_row_local = wolfram_row_local % grid_size_in.y
+	if wolfram_row_local >= grid_size_in.y and not allow_wrap:
+		return {"grid": grid_in, "row": wolfram_row_local, "changed": false}
+	var next_state: PackedByteArray = grid_in
+	var source_row: int = 0
+	if wolfram_row_local <= 0:
+		source_row = grid_size_in.y - 1 if allow_wrap else 0
+	else:
+		source_row = wolfram_row_local - 1
+	var changed: bool = true
+	for x in range(grid_size_in.x):
+		var left: int = _thread_sample_cell(grid_in, grid_size_in, edge_mode_in, x - 1, source_row)
+		var center: int = _thread_sample_cell(grid_in, grid_size_in, edge_mode_in, x, source_row)
+		var right: int = _thread_sample_cell(grid_in, grid_size_in, edge_mode_in, x + 1, source_row)
+		var key: int = (left << 2) | (center << 1) | right
+		var state: int = (rule >> key) & 1
+		next_state[wolfram_row_local * grid_size_in.x + x] = state
+	var next_row: int = wolfram_row_local + 1
+	if allow_wrap:
+		next_row = (wolfram_row_local + 1) % grid_size_in.y
+	return {"grid": next_state, "row": next_row, "changed": changed}
+
+static func _thread_compute_ants(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array) -> Dictionary:
+	var count: int = min(ants_in.size(), dirs_in.size())
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y or count <= 0:
+		return {"grid": grid_in, "ants": ants_in, "directions": dirs_in, "colors": colors_in, "changed": false}
+	var next_grid: PackedByteArray = grid_in
+	var next_ants: Array = []
+	var next_dirs: Array = []
+	var next_colors: Array = []
+	var changed: bool = false
+	for i in range(count):
+		var pos: Vector2i = ants_in[i]
+		if pos.x < 0 or pos.x >= grid_size_in.x or pos.y < 0 or pos.y >= grid_size_in.y:
+			changed = true
+			continue
+		var dir: int = int(dirs_in[i]) % DIRS.size()
+		if dir < 0:
+			dir += DIRS.size()
+		var idx: int = pos.y * grid_size_in.x + pos.x
+		var current: int = next_grid[idx]
+		if current == 1:
+			dir = (dir + 1) % DIRS.size()
+			next_grid[idx] = 0
+		else:
+			dir = (dir + DIRS.size() - 1) % DIRS.size()
+			next_grid[idx] = 1
+		var next: Vector2i = pos + DIRS[dir]
+		match edge_mode_in:
+			EDGE_WRAP:
+				next = Vector2i(posmod(next.x, grid_size_in.x), posmod(next.y, grid_size_in.y))
+			EDGE_BOUNCE:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					dir = (dir + 2) % DIRS.size()
+					next = pos + DIRS[dir]
+					next.x = clamp(next.x, 0, grid_size_in.x - 1)
+					next.y = clamp(next.y, 0, grid_size_in.y - 1)
+			EDGE_FALLOFF:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					changed = true
+					continue
+		if not changed and (pos != next or dir != int(dirs_in[i]) or next_grid[idx] != current):
+			changed = true
+		next_ants.append(next)
+		next_dirs.append(dir)
+		if i < colors_in.size():
+			next_colors.append(colors_in[i])
+		else:
+			next_colors.append(Color.WHITE)
+	return {"grid": next_grid, "ants": next_ants, "directions": next_dirs, "colors": next_colors, "changed": changed}
+
+static func _thread_compute_turmites(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array, rule: String) -> Dictionary:
+	var count: int = min(ants_in.size(), dirs_in.size())
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y or count <= 0:
+		return {"grid": grid_in, "ants": ants_in, "directions": dirs_in, "colors": colors_in, "changed": false}
+	var next_grid: PackedByteArray = grid_in
+	var rule_upper: String = rule.to_upper()
+	if rule_upper.length() < 2:
+		rule_upper = "RL"
+	var next_ants: Array = []
+	var next_dirs: Array = []
+	var next_colors: Array = []
+	var changed: bool = false
+	for i in range(count):
+		var pos: Vector2i = ants_in[i]
+		if pos.x < 0 or pos.x >= grid_size_in.x or pos.y < 0 or pos.y >= grid_size_in.y:
+			changed = true
+			continue
+		var dir: int = int(dirs_in[i]) % DIRS.size()
+		if dir < 0:
+			dir += DIRS.size()
+		var idx: int = pos.y * grid_size_in.x + pos.x
+		var current: int = next_grid[idx]
+		var rule_idx: int = clamp(current, 0, rule_upper.length() - 1)
+		var turn: String = rule_upper[rule_idx]
+		if turn == "R":
+			dir = (dir + 1) % DIRS.size()
+		else:
+			dir = (dir + DIRS.size() - 1) % DIRS.size()
+		next_grid[idx] = 1 - current
+		var next: Vector2i = pos + DIRS[dir]
+		match edge_mode_in:
+			EDGE_WRAP:
+				next = Vector2i(posmod(next.x, grid_size_in.x), posmod(next.y, grid_size_in.y))
+			EDGE_BOUNCE:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					dir = (dir + 2) % DIRS.size()
+					next = pos + DIRS[dir]
+					next.x = clamp(next.x, 0, grid_size_in.x - 1)
+					next.y = clamp(next.y, 0, grid_size_in.y - 1)
+			EDGE_FALLOFF:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					changed = true
+					continue
+		if not changed and (pos != next or dir != int(dirs_in[i]) or next_grid[idx] != current):
+			changed = true
+		next_ants.append(next)
+		next_dirs.append(dir)
+		if i < colors_in.size():
+			next_colors.append(colors_in[i])
+		else:
+			next_colors.append(Color.WHITE)
+	return {"grid": next_grid, "ants": next_ants, "directions": next_dirs, "colors": next_colors, "changed": changed}
+
+static func _thread_compute_sand(grid_in: PackedInt32Array, grid_size_in: Vector2i, edge_mode_in: int) -> Dictionary:
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+		return {"grid": grid_in, "changed": false}
+	var updates: Array[Vector2i] = []
+	for y in range(grid_size_in.y):
+		for x in range(grid_size_in.x):
+			var idx: int = y * grid_size_in.x + x
+			if grid_in[idx] >= 4:
+				updates.append(Vector2i(x, y))
+	if updates.is_empty():
+		return {"grid": grid_in, "changed": false}
+	var next: PackedInt32Array = grid_in
+	for pos in updates:
+		var idx: int = pos.y * grid_size_in.x + pos.x
+		next[idx] -= 4
+		for dir in DIRS:
+			var npos: Vector2i = pos + dir
+			match edge_mode_in:
+				EDGE_WRAP:
+					npos = Vector2i(posmod(npos.x, grid_size_in.x), posmod(npos.y, grid_size_in.y))
+				EDGE_BOUNCE:
+					npos.x = clamp(npos.x, 0, grid_size_in.x - 1)
+					npos.y = clamp(npos.y, 0, grid_size_in.y - 1)
+				EDGE_FALLOFF:
+					if npos.x < 0 or npos.x >= grid_size_in.x or npos.y < 0 or npos.y >= grid_size_in.y:
+						continue
+			var nidx: int = npos.y * grid_size_in.x + npos.x
+			next[nidx] += 1
+	return {"grid": next, "changed": true}
+
+static func _sim_totalistic_worker(grid_in: PackedByteArray, grid_size_in: Vector2i, birth: Array, survive: Array, edge_mode_in: int) -> Dictionary:
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+		return {"grid": grid_in, "changed": false}
+	var next_state: PackedByteArray = PackedByteArray()
+	next_state.resize(grid_in.size())
+	var birth_set: Array = birth
+	var survive_set: Array = survive
+	var changed: bool = false
+	for y in range(grid_size_in.y):
+		for x in range(grid_size_in.x):
+			var alive: int = _sim_sample_cell(grid_in, grid_size_in, edge_mode_in, x, y)
+			var neighbors: int = 0
+			for dy in range(-1, 2):
+				for dx in range(-1, 2):
+					if dx == 0 and dy == 0:
+						continue
+					neighbors += _sim_sample_cell(grid_in, grid_size_in, edge_mode_in, x + dx, y + dy)
+			var new_val: int = 0
+			if alive == 1:
+				if survive_set.has(neighbors):
+					new_val = 1
+			else:
+				if birth_set.has(neighbors):
+					new_val = 1
+			var idx: int = y * grid_size_in.x + x
+			next_state[idx] = new_val
+			if not changed and new_val != grid_in[idx]:
+				changed = true
+	return {"grid": next_state, "changed": changed}
+
+static func _sim_sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, x: int, y: int) -> int:
+	if x >= 0 and x < grid_size_in.x and y >= 0 and y < grid_size_in.y:
+		return grid_in[y * grid_size_in.x + x]
+	match edge_mode_in:
+		EDGE_WRAP:
+			var nx: int = posmod(x, grid_size_in.x)
+			var ny: int = posmod(y, grid_size_in.y)
+			return grid_in[ny * grid_size_in.x + nx]
+		EDGE_BOUNCE:
+			var bounce_x: int = x
+			var bounce_y: int = y
+			if bounce_x < 0:
+				bounce_x = -bounce_x - 1
+			elif bounce_x >= grid_size_in.x:
+				bounce_x = grid_size_in.x - (bounce_x - grid_size_in.x) - 1
+			if bounce_y < 0:
+				bounce_y = -bounce_y - 1
+			elif bounce_y >= grid_size_in.y:
+				bounce_y = grid_size_in.y - (bounce_y - grid_size_in.y) - 1
+			bounce_x = clamp(bounce_x, 0, grid_size_in.x - 1)
+			bounce_y = clamp(bounce_y, 0, grid_size_in.y - 1)
+			return grid_in[bounce_y * grid_size_in.x + bounce_x]
+		_:
+			return 0
+
+static func _sim_wolfram_worker(grid_in: PackedByteArray, grid_size_in: Vector2i, rule: int, row: int, edge_mode_in: int, allow_wrap: bool) -> Dictionary:
+	if grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+		return {"grid": grid_in, "row": row, "changed": false}
+	var wolfram_row_local: int = row
+	if allow_wrap and grid_size_in.y > 0:
+		wolfram_row_local = wolfram_row_local % grid_size_in.y
+	if wolfram_row_local >= grid_size_in.y and not allow_wrap:
+		return {"grid": grid_in, "row": wolfram_row_local, "changed": false}
+	var next_state: PackedByteArray = grid_in
+	var source_row: int = 0
+	if wolfram_row_local <= 0:
+		source_row = grid_size_in.y - 1 if allow_wrap else 0
+	else:
+		source_row = wolfram_row_local - 1
+	var changed: bool = true
+	for x in range(grid_size_in.x):
+		var left: int = _sim_sample_cell(grid_in, grid_size_in, edge_mode_in, x - 1, source_row)
+		var center: int = _sim_sample_cell(grid_in, grid_size_in, edge_mode_in, x, source_row)
+		var right: int = _sim_sample_cell(grid_in, grid_size_in, edge_mode_in, x + 1, source_row)
+		var key: int = (left << 2) | (center << 1) | right
+		var state: int = (rule >> key) & 1
+		next_state[wolfram_row_local * grid_size_in.x + x] = state
+	var next_row: int = wolfram_row_local + 1
+	if allow_wrap:
+		next_row = (wolfram_row_local + 1) % grid_size_in.y
+	return {"grid": next_state, "row": next_row, "changed": changed}
+
+static func _sim_ants_worker(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array) -> Dictionary:
+	var count: int = min(ants_in.size(), dirs_in.size())
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y or count <= 0:
+		return {"grid": grid_in, "ants": ants_in, "directions": dirs_in, "colors": colors_in, "changed": false}
+	var next_grid: PackedByteArray = grid_in
+	var next_ants: Array = []
+	var next_dirs: Array = []
+	var next_colors: Array = []
+	var changed: bool = false
+	for i in range(count):
+		var pos: Vector2i = ants_in[i]
+		if pos.x < 0 or pos.x >= grid_size_in.x or pos.y < 0 or pos.y >= grid_size_in.y:
+			changed = true
+			continue
+		var dir: int = int(dirs_in[i]) % DIRS.size()
+		if dir < 0:
+			dir += DIRS.size()
+		var idx: int = pos.y * grid_size_in.x + pos.x
+		var current: int = next_grid[idx]
+		if current == 1:
+			dir = (dir + 1) % DIRS.size()
+			next_grid[idx] = 0
+		else:
+			dir = (dir + DIRS.size() - 1) % DIRS.size()
+			next_grid[idx] = 1
+		var next: Vector2i = pos + DIRS[dir]
+		match edge_mode_in:
+			EDGE_WRAP:
+				next = Vector2i(posmod(next.x, grid_size_in.x), posmod(next.y, grid_size_in.y))
+			EDGE_BOUNCE:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					dir = (dir + 2) % DIRS.size()
+					next = pos + DIRS[dir]
+					next.x = clamp(next.x, 0, grid_size_in.x - 1)
+					next.y = clamp(next.y, 0, grid_size_in.y - 1)
+			EDGE_FALLOFF:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					changed = true
+					continue
+		if not changed and (pos != next or dir != int(dirs_in[i]) or next_grid[idx] != current):
+			changed = true
+		next_ants.append(next)
+		next_dirs.append(dir)
+		if i < colors_in.size():
+			next_colors.append(colors_in[i])
+		else:
+			next_colors.append(Color.WHITE)
+	return {"grid": next_grid, "ants": next_ants, "directions": next_dirs, "colors": next_colors, "changed": changed}
+
+static func _sim_turmites_worker(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array, rule: String) -> Dictionary:
+	var count: int = min(ants_in.size(), dirs_in.size())
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y or count <= 0:
+		return {"grid": grid_in, "ants": ants_in, "directions": dirs_in, "colors": colors_in, "changed": false}
+	var next_grid: PackedByteArray = grid_in
+	var rule_upper: String = rule.to_upper()
+	if rule_upper.length() < 2:
+		rule_upper = "RL"
+	var next_ants: Array = []
+	var next_dirs: Array = []
+	var next_colors: Array = []
+	var changed: bool = false
+	for i in range(count):
+		var pos: Vector2i = ants_in[i]
+		if pos.x < 0 or pos.x >= grid_size_in.x or pos.y < 0 or pos.y >= grid_size_in.y:
+			changed = true
+			continue
+		var dir: int = int(dirs_in[i]) % DIRS.size()
+		if dir < 0:
+			dir += DIRS.size()
+		var idx: int = pos.y * grid_size_in.x + pos.x
+		var current: int = next_grid[idx]
+		var rule_idx: int = clamp(current, 0, rule_upper.length() - 1)
+		var turn: String = rule_upper[rule_idx]
+		if turn == "R":
+			dir = (dir + 1) % DIRS.size()
+		else:
+			dir = (dir + DIRS.size() - 1) % DIRS.size()
+		next_grid[idx] = 1 - current
+		var next: Vector2i = pos + DIRS[dir]
+		match edge_mode_in:
+			EDGE_WRAP:
+				next = Vector2i(posmod(next.x, grid_size_in.x), posmod(next.y, grid_size_in.y))
+			EDGE_BOUNCE:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					dir = (dir + 2) % DIRS.size()
+					next = pos + DIRS[dir]
+					next.x = clamp(next.x, 0, grid_size_in.x - 1)
+					next.y = clamp(next.y, 0, grid_size_in.y - 1)
+			EDGE_FALLOFF:
+				if next.x < 0 or next.x >= grid_size_in.x or next.y < 0 or next.y >= grid_size_in.y:
+					changed = true
+					continue
+		if not changed and (pos != next or dir != int(dirs_in[i]) or next_grid[idx] != current):
+			changed = true
+		next_ants.append(next)
+		next_dirs.append(dir)
+		if i < colors_in.size():
+			next_colors.append(colors_in[i])
+		else:
+			next_colors.append(Color.WHITE)
+	return {"grid": next_grid, "ants": next_ants, "directions": next_dirs, "colors": next_colors, "changed": changed}
+
+static func _sim_sand_worker(grid_in: PackedInt32Array, grid_size_in: Vector2i, edge_mode_in: int) -> Dictionary:
+	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+		return {"grid": grid_in, "changed": false}
+	var updates: Array[Vector2i] = []
+	for y in range(grid_size_in.y):
+		for x in range(grid_size_in.x):
+			var idx: int = y * grid_size_in.x + x
+			if grid_in[idx] >= 4:
+				updates.append(Vector2i(x, y))
+	if updates.is_empty():
+		return {"grid": grid_in, "changed": false}
+	var next: PackedInt32Array = grid_in
+	for pos in updates:
+		var idx: int = pos.y * grid_size_in.x + pos.x
+		next[idx] -= 4
+		for dir in DIRS:
+			var npos: Vector2i = pos + dir
+			match edge_mode_in:
+				EDGE_WRAP:
+					npos = Vector2i(posmod(npos.x, grid_size_in.x), posmod(npos.y, grid_size_in.y))
+				EDGE_BOUNCE:
+					npos.x = clamp(npos.x, 0, grid_size_in.x - 1)
+					npos.y = clamp(npos.y, 0, grid_size_in.y - 1)
+				EDGE_FALLOFF:
+					if npos.x < 0 or npos.x >= grid_size_in.x or npos.y < 0 or npos.y >= grid_size_in.y:
+						continue
+			var nidx: int = npos.y * grid_size_in.x + npos.x
+			next[nidx] += 1
+	return {"grid": next, "changed": true}
 
 static func sim_job_totalistic(grid_in: PackedByteArray, grid_size_in: Vector2i, birth: Array, survive: Array, edge_mode_in: int) -> Dictionary:
 	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
