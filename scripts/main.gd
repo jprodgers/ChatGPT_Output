@@ -1560,6 +1560,9 @@ func process_sand(delta: float) -> bool:
 	return stepped
 
 func step_wolfram(allow_wrap: bool = true) -> void:
+	step_wolfram_with_workers(allow_wrap, true)
+
+func step_wolfram_with_workers(allow_wrap: bool, use_workers: bool) -> void:
 	if native_automata != null and native_automata.has_method("step_wolfram"):
 		var native_result: Dictionary = native_automata.call("step_wolfram", grid, grid_size, wolfram_rule, wolfram_row, edge_mode, allow_wrap)
 		if native_result.has("grid") and native_result["grid"] is PackedByteArray:
@@ -1569,7 +1572,7 @@ func step_wolfram(allow_wrap: bool = true) -> void:
 		if native_result.get("changed", true):
 			request_render()
 		return
-	if not _grid_sim_busy():
+	if use_workers and not _grid_sim_busy():
 		var args: Array = [grid.duplicate(), grid_size, wolfram_rule, wolfram_row, edge_mode, allow_wrap]
 		if _enqueue_sim_task("wolfram", Callable(self, "sim_job_wolfram"), args):
 			return
@@ -1602,7 +1605,7 @@ func fill_wolfram_screen() -> void:
 		wolfram_row = 1
 	var remaining: int = max(0, grid_size.y - wolfram_row)
 	for _i in range(remaining):
-		step_wolfram(false)
+		step_wolfram_with_workers(false, false)
 	wolfram_enabled = false
 	wolfram_accumulator = 0.0
 	request_render()
