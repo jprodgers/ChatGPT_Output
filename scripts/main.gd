@@ -1261,7 +1261,7 @@ func build_turmite_controls() -> VBoxContainer:
 	buttons.add_child(toggle)
 	var step: Button = Button.new()
 	step.text = "Step"
-	step.pressed.connect(func() -> void: step_turmites(); request_render())
+	step.pressed.connect(func() -> void: step_turmites(false); request_render())
 	buttons.add_child(step)
 	var clear_button: Button = Button.new()
 	clear_button.text = "Clear"
@@ -1542,7 +1542,7 @@ func process_turmites(delta: float) -> bool:
 	var interval: float = 1.0 / turmite_rate
 	var stepped: bool = false
 	while turmite_accumulator >= interval:
-		step_turmites()
+		step_turmites(false)
 		turmite_accumulator -= interval
 		stepped = true
 	return stepped
@@ -1762,7 +1762,7 @@ func remove_turmites_at(pos: Vector2i) -> bool:
 		turmite_accumulator = 0.0
 	return removed
 
-func step_turmites() -> void:
+func step_turmites(use_workers: bool = true) -> void:
 	if native_automata != null and native_automata.has_method("step_turmites"):
 		var native_result: Dictionary = native_automata.call("step_turmites", grid, grid_size, edge_mode, turmites, turmite_directions, turmite_colors, turmite_rule)
 		if native_result.has("grid") and native_result["grid"] is PackedByteArray:
@@ -1776,7 +1776,7 @@ func step_turmites() -> void:
 		if native_result.get("changed", true):
 			request_render()
 		return
-	if not _grid_sim_busy():
+	if use_workers and not _grid_sim_busy():
 		var args: Array = [grid.duplicate(), grid_size, edge_mode, turmites.duplicate(), turmite_directions.duplicate(), turmite_colors.duplicate(), turmite_rule]
 		if _enqueue_sim_task("turmites", Callable(self, "sim_job_turmites"), args):
 			return
