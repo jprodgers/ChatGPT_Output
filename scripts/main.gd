@@ -279,9 +279,15 @@ func is_high_density_device() -> bool:
 func get_sidebar_ratio() -> float:
 	return clamp(sidebar_target_ratio, SIDEBAR_MIN_RATIO, SIDEBAR_MAX_RATIO)
 
-func update_sidebar_allocation(effective_width: float, ratio: float) -> void:
+func update_sidebar_allocation(effective_width: float = -1.0, ratio: float = -1.0) -> void:
 	if sidebar_ref == null or view_container == null:
 		return
+	if ratio < 0.0:
+		ratio = get_sidebar_ratio()
+	if effective_width < 0.0:
+		var viewport_size: Vector2 = Vector2(get_viewport_rect().size)
+		var desired_width: float = viewport_size.x * ratio if viewport_size.x > 0.0 else sidebar_min_width
+		effective_width = max(sidebar_min_width, desired_width)
 	sidebar_ref.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	view_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sidebar_ref.custom_minimum_size.x = max(sidebar_min_width, effective_width)
