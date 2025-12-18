@@ -3160,14 +3160,15 @@ static func sim_job_sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i
 			return 0
 
 static func sim_job_wolfram(grid_in: PackedByteArray, grid_size_in: Vector2i, rule: int, row: int, edge_mode_in: int, allow_wrap: bool) -> Dictionary:
-	if grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+	var expected: int = grid_size_in.x * grid_size_in.y
+	if grid_size_in.y <= 0 or grid_size_in.x <= 0 or grid_in.size() != expected:
 		return {"grid": grid_in, "row": row, "changed": false}
 	var wolfram_row_local: int = row
 	if allow_wrap and grid_size_in.y > 0:
-		wolfram_row_local = wolfram_row_local % grid_size_in.y
-	if wolfram_row_local >= grid_size_in.y and not allow_wrap:
+		wolfram_row_local = posmod(wolfram_row_local, grid_size_in.y)
+	if wolfram_row_local < 0 or wolfram_row_local >= grid_size_in.y:
 		return {"grid": grid_in, "row": wolfram_row_local, "changed": false}
-	var next_state: PackedByteArray = grid_in
+	var next_state: PackedByteArray = grid_in.duplicate()
 	var source_row: int = 0
 	if wolfram_row_local <= 0:
 		source_row = grid_size_in.y - 1 if allow_wrap else 0
@@ -3194,6 +3195,13 @@ static func sim_job_wolfram(grid_in: PackedByteArray, grid_size_in: Vector2i, ru
 	return {"grid": next_state, "row": next_row, "changed": changed_ref[0]}
 
 static func _sim_wolfram_element(idx: int, grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, rule: int, source_row: int, target_row: int, next_state: PackedByteArray, changed_ref: Array, change_mutex: Mutex) -> void:
+	if idx < 0 or idx >= grid_size_in.x:
+		return
+	if target_row < 0 or target_row >= grid_size_in.y:
+		return
+	var expected: int = grid_size_in.x * grid_size_in.y
+	if expected <= 0 or next_state.size() != expected:
+		return
 	var left: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, idx - 1, source_row)
 	var center: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, idx, source_row)
 	var right: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, idx + 1, source_row)
