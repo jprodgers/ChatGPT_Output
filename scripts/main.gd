@@ -2884,12 +2884,16 @@ static func _sim_sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i, e
 	if expected <= 0 or grid_in.size() != expected:
 		return 0
 	if x >= 0 and x < grid_size_in.x and y >= 0 and y < grid_size_in.y:
-		return grid_in[y * grid_size_in.x + x]
+		var idx: int = y * grid_size_in.x + x
+		if idx >= 0 and idx < grid_in.size():
+			return grid_in[idx]
+		return 0
 	match edge_mode_in:
 		EDGE_WRAP:
 			var nx: int = posmod(x, grid_size_in.x)
 			var ny: int = posmod(y, grid_size_in.y)
-			return grid_in[ny * grid_size_in.x + nx]
+			var wrapped_idx: int = ny * grid_size_in.x + nx
+			return grid_in[wrapped_idx] if wrapped_idx >= 0 and wrapped_idx < grid_in.size() else 0
 		EDGE_BOUNCE:
 			var bounce_x: int = x
 			var bounce_y: int = y
@@ -2903,7 +2907,8 @@ static func _sim_sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i, e
 				bounce_y = grid_size_in.y - (bounce_y - grid_size_in.y) - 1
 			bounce_x = clamp(bounce_x, 0, grid_size_in.x - 1)
 			bounce_y = clamp(bounce_y, 0, grid_size_in.y - 1)
-			return grid_in[bounce_y * grid_size_in.x + bounce_x]
+			var bounce_idx: int = bounce_y * grid_size_in.x + bounce_x
+			return grid_in[bounce_idx] if bounce_idx >= 0 and bounce_idx < grid_in.size() else 0
 		_:
 			return 0
 
@@ -3126,12 +3131,16 @@ static func sim_job_sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i
 	if expected <= 0 or grid_in.size() != expected:
 		return 0
 	if x >= 0 and x < grid_size_in.x and y >= 0 and y < grid_size_in.y:
-		return grid_in[y * grid_size_in.x + x]
+		var idx: int = y * grid_size_in.x + x
+		if idx >= 0 and idx < grid_in.size():
+			return grid_in[idx]
+		return 0
 	match edge_mode_in:
 		EDGE_WRAP:
 			var nx: int = posmod(x, grid_size_in.x)
 			var ny: int = posmod(y, grid_size_in.y)
-			return grid_in[ny * grid_size_in.x + nx]
+			var wrapped_idx: int = ny * grid_size_in.x + nx
+			return grid_in[wrapped_idx] if wrapped_idx >= 0 and wrapped_idx < grid_in.size() else 0
 		EDGE_BOUNCE:
 			var bounce_x: int = x
 			var bounce_y: int = y
@@ -3145,7 +3154,8 @@ static func sim_job_sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i
 				bounce_y = grid_size_in.y - (bounce_y - grid_size_in.y) - 1
 			bounce_x = clamp(bounce_x, 0, grid_size_in.x - 1)
 			bounce_y = clamp(bounce_y, 0, grid_size_in.y - 1)
-			return grid_in[bounce_y * grid_size_in.x + bounce_x]
+			var bounce_idx: int = bounce_y * grid_size_in.x + bounce_x
+			return grid_in[bounce_idx] if bounce_idx >= 0 and bounce_idx < grid_in.size() else 0
 		_:
 			return 0
 
@@ -3163,6 +3173,8 @@ static func sim_job_wolfram(grid_in: PackedByteArray, grid_size_in: Vector2i, ru
 		source_row = grid_size_in.y - 1 if allow_wrap else 0
 	else:
 		source_row = wolfram_row_local - 1
+	if source_row < 0 or source_row >= grid_size_in.y:
+		return {"grid": next_state, "row": wolfram_row_local, "changed": false}
 	var changed_ref: Array = [false]
 	var change_mutex: Mutex = Mutex.new()
 	var tasks: int = _sim_task_count(grid_size_in.x)
