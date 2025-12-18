@@ -97,6 +97,11 @@ var ant_colors: Array[Color] = []
 var seed_fill: float = 0.2
 var high_density_menu_scale: float = 2.0
 var auto_menu_scale: bool = true
+const SIDEBAR_MIN_RATIO: float = 0.1
+const SIDEBAR_MAX_RATIO: float = 0.3
+@export var sidebar_target_ratio: float = 0.2
+@export var sidebar_min_width: float = 260.0
+@export var sidebar_base_width: float = 260.0
 
 var global_rate: float = 10.0
 
@@ -271,19 +276,32 @@ func is_high_density_device() -> bool:
 	var size: Vector2i = DisplayServer.screen_get_size()
 	return max(size.x, size.y) >= 2560
 
+func get_sidebar_ratio() -> float:
+	return clamp(sidebar_target_ratio, SIDEBAR_MIN_RATIO, SIDEBAR_MAX_RATIO)
+
+func update_sidebar_allocation(effective_width: float, ratio: float) -> void:
+	if sidebar_ref == null or view_container == null:
+		return
+	sidebar_ref.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	view_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sidebar_ref.custom_minimum_size.x = max(sidebar_min_width, effective_width)
+	sidebar_ref.size_flags_stretch_ratio = ratio
+	view_container.size_flags_stretch_ratio = max(0.001, 1.0 - ratio)
+
 func update_sidebar_scale() -> void:
 	if sidebar_ref == null:
 		return
+	var viewport_size: Vector2 = Vector2(get_viewport_rect().size)
+	var ratio: float = get_sidebar_ratio()
+	var desired_width: float = viewport_size.x * ratio if viewport_size.x > 0.0 else sidebar_min_width
+	var effective_width: float = max(sidebar_min_width, desired_width)
+	update_sidebar_allocation(effective_width, ratio)
 	if not auto_menu_scale:
 		sidebar_ref.scale = Vector2.ONE
 		return
-	var viewport_size: Vector2 = Vector2(get_viewport_rect().size)
 	if viewport_size.x <= 0.0:
 		return
-	var target_ratio: float = 0.2
-	var base_width: float = 260.0
-	var desired_width: float = viewport_size.x * target_ratio
-	var computed_scale: float = desired_width / base_width
+	var computed_scale: float = effective_width / max(1.0, sidebar_base_width)
 	if is_high_density_device():
 		computed_scale = max(computed_scale, high_density_menu_scale)
 	var clamped: float = clamp(computed_scale, 0.75, 3.0)
@@ -488,8 +506,8 @@ func build_ui() -> void:
 	add_child(root)
 
 	sidebar_ref = PanelContainer.new()
-	sidebar_ref.custom_minimum_size = Vector2(260, 0)
-	sidebar_ref.size_flags_horizontal = Control.SIZE_FILL
+	sidebar_ref.custom_minimum_size = Vector2(sidebar_min_width, 0)
+	sidebar_ref.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sidebar_ref.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	root.add_child(sidebar_ref)
 
