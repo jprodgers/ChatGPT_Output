@@ -1914,7 +1914,9 @@ func build_sand_image_from_data(size: Vector2i, data: PackedInt32Array, palette:
 	var has_content: bool = false
 	var data_size: int = data.size()
 	for i in range(bytes.size()):
-		var value: int = (data[i] if i < data_size else 0)
+		var value: int = 0
+		if i < data_size:
+			value = data[i]
 		if value > 0:
 			has_content = true
 		var encoded: int = 0
@@ -1940,7 +1942,7 @@ func capture_render_state() -> Dictionary:
 	return {
 		"grid_size": grid_size,
 		"grid": grid,
-		"sand_grid": sand_grid,
+		"sand_grid": sand_grid.duplicate(),
 		"sand_colors": sand_colors.duplicate(true),
 		"ants": ants.duplicate(true),
 		"ant_colors": ant_colors.duplicate(true),
@@ -2049,6 +2051,23 @@ func update_image_texture(tex: ImageTexture, img: Image) -> ImageTexture:
 
 func _apply_sim_results() -> bool:
 	var changed: bool = false
+	var to_vector2_array := func(raw: Array) -> Array[Vector2i]:
+		var out: Array[Vector2i] = []
+		for v in raw:
+			if v is Vector2i:
+				out.append(v)
+		return out
+	var to_color_array := func(raw: Array) -> Array[Color]:
+		var out: Array[Color] = []
+		for v in raw:
+			if v is Color:
+				out.append(v)
+		return out
+	var to_int_array := func(raw: Array) -> Array[int]:
+		var out: Array[int] = []
+		for v in raw:
+			out.append(int(v))
+		return out
 	var wolfram_result: Dictionary = _take_sim_result("wolfram")
 	if not wolfram_result.is_empty():
 		if wolfram_result.has("grid") and wolfram_result["grid"] is PackedByteArray:
@@ -2068,11 +2087,11 @@ func _apply_sim_results() -> bool:
 		if ants_result.has("grid") and ants_result["grid"] is PackedByteArray:
 			grid = ants_result["grid"]
 		if ants_result.has("ants") and ants_result["ants"] is Array:
-			ants = ants_result["ants"]
+			ants = to_vector2_array.call(ants_result["ants"])
 		if ants_result.has("directions") and ants_result["directions"] is Array:
-			ant_directions = ants_result["directions"]
+			ant_directions = to_int_array.call(ants_result["directions"])
 		if ants_result.has("colors") and ants_result["colors"] is Array:
-			ant_colors = ants_result["colors"]
+			ant_colors = to_color_array.call(ants_result["colors"])
 		if ants_result.get("changed", true):
 			changed = true
 	var turmite_result: Dictionary = _take_sim_result("turmites")
@@ -2080,11 +2099,11 @@ func _apply_sim_results() -> bool:
 		if turmite_result.has("grid") and turmite_result["grid"] is PackedByteArray:
 			grid = turmite_result["grid"]
 		if turmite_result.has("ants") and turmite_result["ants"] is Array:
-			turmites = turmite_result["ants"]
+			turmites = to_vector2_array.call(turmite_result["ants"])
 		if turmite_result.has("directions") and turmite_result["directions"] is Array:
-			turmite_directions = turmite_result["directions"]
+			turmite_directions = to_int_array.call(turmite_result["directions"])
 		if turmite_result.has("colors") and turmite_result["colors"] is Array:
-			turmite_colors = turmite_result["colors"]
+			turmite_colors = to_color_array.call(turmite_result["colors"])
 		if turmite_result.get("changed", true):
 			changed = true
 	var sand_result: Dictionary = _take_sim_result("sand")
@@ -2861,13 +2880,20 @@ static func _sim_totalistic_worker(grid_in: PackedByteArray, grid_size_in: Vecto
 	return {"grid": next_state, "changed": changed}
 
 static func _sim_sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, x: int, y: int) -> int:
+	var expected: int = grid_size_in.x * grid_size_in.y
+	if expected <= 0 or grid_in.size() != expected:
+		return 0
 	if x >= 0 and x < grid_size_in.x and y >= 0 and y < grid_size_in.y:
-		return grid_in[y * grid_size_in.x + x]
+		var idx: int = y * grid_size_in.x + x
+		if idx >= 0 and idx < grid_in.size():
+			return grid_in[idx]
+		return 0
 	match edge_mode_in:
 		EDGE_WRAP:
 			var nx: int = posmod(x, grid_size_in.x)
 			var ny: int = posmod(y, grid_size_in.y)
-			return grid_in[ny * grid_size_in.x + nx]
+			var wrapped_idx: int = ny * grid_size_in.x + nx
+			return grid_in[wrapped_idx] if wrapped_idx >= 0 and wrapped_idx < grid_in.size() else 0
 		EDGE_BOUNCE:
 			var bounce_x: int = x
 			var bounce_y: int = y
@@ -2881,7 +2907,8 @@ static func _sim_sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i, e
 				bounce_y = grid_size_in.y - (bounce_y - grid_size_in.y) - 1
 			bounce_x = clamp(bounce_x, 0, grid_size_in.x - 1)
 			bounce_y = clamp(bounce_y, 0, grid_size_in.y - 1)
-			return grid_in[bounce_y * grid_size_in.x + bounce_x]
+			var bounce_idx: int = bounce_y * grid_size_in.x + bounce_x
+			return grid_in[bounce_idx] if bounce_idx >= 0 and bounce_idx < grid_in.size() else 0
 		_:
 			return 0
 
@@ -3044,6 +3071,18 @@ static func _sim_sand_worker(grid_in: PackedInt32Array, grid_size_in: Vector2i, 
 			next[nidx] += 1
 	return {"grid": next, "changed": true}
 
+static func _sim_task_count(cell_count: int) -> int:
+	return max(1, min(cell_count, OS.get_processor_count()))
+
+static func _mark_sim_changed(changed_ref: Array, change_mutex: Mutex) -> void:
+	if changed_ref.is_empty() or change_mutex == null:
+		return
+	if changed_ref[0]:
+		return
+	change_mutex.lock()
+	changed_ref[0] = true
+	change_mutex.unlock()
+
 static func sim_job_totalistic(grid_in: PackedByteArray, grid_size_in: Vector2i, birth: Array, survive: Array, edge_mode_in: int) -> Dictionary:
 	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
 		return {"grid": grid_in, "changed": false}
@@ -3051,37 +3090,57 @@ static func sim_job_totalistic(grid_in: PackedByteArray, grid_size_in: Vector2i,
 	next_state.resize(grid_in.size())
 	var birth_set: Array = birth
 	var survive_set: Array = survive
-	var changed: bool = false
-	for y in range(grid_size_in.y):
-		for x in range(grid_size_in.x):
-			var alive: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x, y)
-			var neighbors: int = 0
-			for dy in range(-1, 2):
-				for dx in range(-1, 2):
-					if dx == 0 and dy == 0:
-						continue
-					neighbors += sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x + dx, y + dy)
-			var new_val: int = 0
-			if alive == 1:
-				if survive_set.has(neighbors):
-					new_val = 1
-			else:
-				if birth_set.has(neighbors):
-					new_val = 1
-			var idx: int = y * grid_size_in.x + x
-			next_state[idx] = new_val
-			if not changed and new_val != grid_in[idx]:
-				changed = true
-	return {"grid": next_state, "changed": changed}
+	var changed_ref: Array = [false]
+	var change_mutex: Mutex = Mutex.new()
+	var cell_count: int = grid_size_in.x * grid_size_in.y
+	var group_id: int = WorkerThreadPool.add_group_task(
+		Callable(CellularAutomataHub, "_sim_totalistic_element").bind(grid_in, grid_size_in, edge_mode_in, birth_set, survive_set, next_state, changed_ref, change_mutex),
+		cell_count,
+		_sim_task_count(cell_count),
+		false,
+		"sim_totalistic_cells"
+	)
+	if group_id < 0:
+		return _sim_totalistic_worker(grid_in, grid_size_in, birth_set, survive_set, edge_mode_in)
+	WorkerThreadPool.wait_for_group_task_completion(group_id)
+	return {"grid": next_state, "changed": changed_ref[0]}
+
+static func _sim_totalistic_element(idx: int, grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, birth_set: Array, survive_set: Array, next_state: PackedByteArray, changed_ref: Array, change_mutex: Mutex) -> void:
+	var x: int = idx % grid_size_in.x
+	var y: int = idx / grid_size_in.x
+	var alive: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x, y)
+	var neighbors: int = 0
+	for dy in range(-1, 2):
+		for dx in range(-1, 2):
+			if dx == 0 and dy == 0:
+				continue
+			neighbors += sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x + dx, y + dy)
+	var new_val: int = 0
+	if alive == 1:
+		if survive_set.has(neighbors):
+			new_val = 1
+	else:
+		if birth_set.has(neighbors):
+			new_val = 1
+	next_state[idx] = new_val
+	if new_val != grid_in[idx]:
+		_mark_sim_changed(changed_ref, change_mutex)
 
 static func sim_job_sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, x: int, y: int) -> int:
+	var expected: int = grid_size_in.x * grid_size_in.y
+	if expected <= 0 or grid_in.size() != expected:
+		return 0
 	if x >= 0 and x < grid_size_in.x and y >= 0 and y < grid_size_in.y:
-		return grid_in[y * grid_size_in.x + x]
+		var idx: int = y * grid_size_in.x + x
+		if idx >= 0 and idx < grid_in.size():
+			return grid_in[idx]
+		return 0
 	match edge_mode_in:
 		EDGE_WRAP:
 			var nx: int = posmod(x, grid_size_in.x)
 			var ny: int = posmod(y, grid_size_in.y)
-			return grid_in[ny * grid_size_in.x + nx]
+			var wrapped_idx: int = ny * grid_size_in.x + nx
+			return grid_in[wrapped_idx] if wrapped_idx >= 0 and wrapped_idx < grid_in.size() else 0
 		EDGE_BOUNCE:
 			var bounce_x: int = x
 			var bounce_y: int = y
@@ -3095,36 +3154,65 @@ static func sim_job_sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i
 				bounce_y = grid_size_in.y - (bounce_y - grid_size_in.y) - 1
 			bounce_x = clamp(bounce_x, 0, grid_size_in.x - 1)
 			bounce_y = clamp(bounce_y, 0, grid_size_in.y - 1)
-			return grid_in[bounce_y * grid_size_in.x + bounce_x]
+			var bounce_idx: int = bounce_y * grid_size_in.x + bounce_x
+			return grid_in[bounce_idx] if bounce_idx >= 0 and bounce_idx < grid_in.size() else 0
 		_:
 			return 0
 
 static func sim_job_wolfram(grid_in: PackedByteArray, grid_size_in: Vector2i, rule: int, row: int, edge_mode_in: int, allow_wrap: bool) -> Dictionary:
-	if grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
+	var expected: int = grid_size_in.x * grid_size_in.y
+	if grid_size_in.y <= 0 or grid_size_in.x <= 0 or grid_in.size() != expected:
 		return {"grid": grid_in, "row": row, "changed": false}
 	var wolfram_row_local: int = row
 	if allow_wrap and grid_size_in.y > 0:
-		wolfram_row_local = wolfram_row_local % grid_size_in.y
-	if wolfram_row_local >= grid_size_in.y and not allow_wrap:
+		wolfram_row_local = posmod(wolfram_row_local, grid_size_in.y)
+	if wolfram_row_local < 0 or wolfram_row_local >= grid_size_in.y:
 		return {"grid": grid_in, "row": wolfram_row_local, "changed": false}
-	var next_state: PackedByteArray = grid_in
+	var next_state: PackedByteArray = grid_in.duplicate()
 	var source_row: int = 0
 	if wolfram_row_local <= 0:
 		source_row = grid_size_in.y - 1 if allow_wrap else 0
 	else:
 		source_row = wolfram_row_local - 1
-	var changed: bool = true
-	for x in range(grid_size_in.x):
-		var left: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x - 1, source_row)
-		var center: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x, source_row)
-		var right: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x + 1, source_row)
-		var key: int = (left << 2) | (center << 1) | right
-		var state: int = (rule >> key) & 1
-		next_state[wolfram_row_local * grid_size_in.x + x] = state
+	if source_row < 0 or source_row >= grid_size_in.y:
+		return {"grid": next_state, "row": wolfram_row_local, "changed": false}
+	var changed_ref: Array = [false]
+	var change_mutex: Mutex = Mutex.new()
+	var tasks: int = _sim_task_count(grid_size_in.x)
+	var group_id: int = WorkerThreadPool.add_group_task(
+		Callable(CellularAutomataHub, "_sim_wolfram_element").bind(grid_in, grid_size_in, edge_mode_in, rule, source_row, wolfram_row_local, next_state, changed_ref, change_mutex),
+		grid_size_in.x,
+		tasks,
+		false,
+		"sim_wolfram_cells"
+	)
+	if group_id < 0:
+		return _sim_wolfram_worker(grid_in, grid_size_in, rule, row, edge_mode_in, allow_wrap)
+	WorkerThreadPool.wait_for_group_task_completion(group_id)
 	var next_row: int = wolfram_row_local + 1
 	if allow_wrap:
 		next_row = (wolfram_row_local + 1) % grid_size_in.y
-	return {"grid": next_state, "row": next_row, "changed": changed}
+	return {"grid": next_state, "row": next_row, "changed": changed_ref[0]}
+
+static func _sim_wolfram_element(idx: int, grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, rule: int, source_row: int, target_row: int, next_state: PackedByteArray, changed_ref: Array, change_mutex: Mutex) -> void:
+	if idx < 0 or idx >= grid_size_in.x:
+		return
+	if target_row < 0 or target_row >= grid_size_in.y:
+		return
+	var expected: int = grid_size_in.x * grid_size_in.y
+	if expected <= 0 or next_state.size() != expected:
+		return
+	var left: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, idx - 1, source_row)
+	var center: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, idx, source_row)
+	var right: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, idx + 1, source_row)
+	var key: int = (left << 2) | (center << 1) | right
+	var state: int = (rule >> key) & 1
+	var dst: int = target_row * grid_size_in.x + idx
+	if dst < 0 or dst >= next_state.size():
+		return
+	if next_state[dst] != state:
+		_mark_sim_changed(changed_ref, change_mutex)
+	next_state[dst] = state
 
 static func sim_job_ants(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array) -> Dictionary:
 	var count: int = min(ants_in.size(), dirs_in.size())
