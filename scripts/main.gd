@@ -1984,7 +1984,9 @@ func step_turmites(use_workers: bool = true) -> void:
 		if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
 			remove_indices.append(i)
 			continue
-		var rule_upper: String = (i < turmite_rules.size() ? str(turmite_rules[i]) : turmite_rule).to_upper()
+		var rule_upper: String = turmite_rule.to_upper()
+		if i < turmite_rules.size():
+			rule_upper = str(turmite_rules[i]).to_upper()
 		if rule_upper.length() < 2:
 			rule_upper = "RL"
 		var rule_len: int = rule_upper.length()
