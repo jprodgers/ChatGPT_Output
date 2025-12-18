@@ -3176,23 +3176,42 @@ static func sim_job_wolfram(grid_in: PackedByteArray, grid_size_in: Vector2i, ru
 		source_row = wolfram_row_local - 1
 	if source_row < 0 or source_row >= grid_size_in.y:
 		return {"grid": next_state, "row": wolfram_row_local, "changed": false}
-	var changed_ref: Array = [false]
-	var change_mutex: Mutex = Mutex.new()
-	var tasks: int = _sim_task_count(grid_size_in.x)
-	var group_id: int = WorkerThreadPool.add_group_task(
-		Callable(CellularAutomataHub, "_sim_wolfram_element").bind(grid_in, grid_size_in, edge_mode_in, rule, source_row, wolfram_row_local, next_state, changed_ref, change_mutex),
-		grid_size_in.x,
-		tasks,
-		false,
-		"sim_wolfram_cells"
-	)
-	if group_id < 0:
-		return _sim_wolfram_worker(grid_in, grid_size_in, rule, row, edge_mode_in, allow_wrap)
-	WorkerThreadPool.wait_for_group_task_completion(group_id)
+	var changed: bool = false
+	for x in range(grid_size_in.x):
+		var left: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x - 1, source_row)
+		var center: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x, source_row)
+		var right: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, x + 1, source_row)
+		var key: int = (left << 2) | (center << 1) | right
+		var state: int = (rule >> key) & 1
+		var dst: int = wolfram_row_local * grid_size_in.x + x
+		if dst >= 0 and dst < next_state.size():
+			if not changed and next_state[dst] != state:
+				changed = true
+			next_state[dst] = state
 	var next_row: int = wolfram_row_local + 1
 	if allow_wrap:
 		next_row = (wolfram_row_local + 1) % grid_size_in.y
 	return {"grid": next_state, "row": next_row, "changed": changed_ref[0]}
+
+static func _sim_wolfram_element(idx: int, grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, rule: int, source_row: int, target_row: int, next_state: PackedByteArray, changed_ref: Array, change_mutex: Mutex) -> void:
+	if idx < 0 or idx >= grid_size_in.x:
+		return
+	if target_row < 0 or target_row >= grid_size_in.y:
+		return
+	var expected: int = grid_size_in.x * grid_size_in.y
+	if expected <= 0 or next_state.size() != expected or grid_in.size() != expected:
+		return
+	var left: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, idx - 1, source_row)
+	var center: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, idx, source_row)
+	var right: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, idx + 1, source_row)
+	var key: int = (left << 2) | (center << 1) | right
+	var state: int = (rule >> key) & 1
+	var dst: int = target_row * grid_size_in.x + idx
+	if dst < 0 or dst >= next_state.size():
+		return
+	if next_state[dst] != state:
+		_mark_sim_changed(changed_ref, change_mutex)
+	next_state[dst] = state
 
 static func _sim_wolfram_element(idx: int, grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, rule: int, source_row: int, target_row: int, next_state: PackedByteArray, changed_ref: Array, change_mutex: Mutex) -> void:
 	if idx < 0 or idx >= grid_size_in.x:
