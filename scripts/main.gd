@@ -645,6 +645,7 @@ func build_ui() -> void:
 		request_render()
 	)
 
+	update_sidebar_allocation()
 	update_grid_line_controls()
 
 	ui_ready = true
