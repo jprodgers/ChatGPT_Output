@@ -2880,6 +2880,9 @@ static func _sim_totalistic_worker(grid_in: PackedByteArray, grid_size_in: Vecto
 	return {"grid": next_state, "changed": changed}
 
 static func _sim_sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, x: int, y: int) -> int:
+	var expected: int = grid_size_in.x * grid_size_in.y
+	if expected <= 0 or grid_in.size() != expected:
+		return 0
 	if x >= 0 and x < grid_size_in.x and y >= 0 and y < grid_size_in.y:
 		return grid_in[y * grid_size_in.x + x]
 	match edge_mode_in:
@@ -3119,6 +3122,9 @@ static func _sim_totalistic_element(idx: int, grid_in: PackedByteArray, grid_siz
 		_mark_sim_changed(changed_ref, change_mutex)
 
 static func sim_job_sample_cell(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, x: int, y: int) -> int:
+	var expected: int = grid_size_in.x * grid_size_in.y
+	if expected <= 0 or grid_in.size() != expected:
+		return 0
 	if x >= 0 and x < grid_size_in.x and y >= 0 and y < grid_size_in.y:
 		return grid_in[y * grid_size_in.x + x]
 	match edge_mode_in:
