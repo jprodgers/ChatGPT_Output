@@ -97,6 +97,9 @@ var ant_colors: Array[Color] = []
 var seed_fill: float = 0.2
 var high_density_menu_scale: float = 2.0
 var auto_menu_scale: bool = true
+const SIDEBAR_MIN_RATIO: float = 0.15
+const SIDEBAR_MAX_RATIO: float = 0.2
+@export var sidebar_target_ratio: float = 0.18
 
 var global_rate: float = 10.0
 
@@ -271,16 +274,27 @@ func is_high_density_device() -> bool:
 	var size: Vector2i = DisplayServer.screen_get_size()
 	return max(size.x, size.y) >= 2560
 
+func get_sidebar_ratio() -> float:
+	return clamp(sidebar_target_ratio, SIDEBAR_MIN_RATIO, SIDEBAR_MAX_RATIO)
+
+func update_sidebar_allocation() -> void:
+	if sidebar_ref == null or view_container == null:
+		return
+	var ratio: float = get_sidebar_ratio()
+	sidebar_ref.size_flags_stretch_ratio = ratio
+	view_container.size_flags_stretch_ratio = max(0.001, 1.0 - ratio)
+
 func update_sidebar_scale() -> void:
 	if sidebar_ref == null:
 		return
+	update_sidebar_allocation()
 	if not auto_menu_scale:
 		sidebar_ref.scale = Vector2.ONE
 		return
 	var viewport_size: Vector2 = Vector2(get_viewport_rect().size)
 	if viewport_size.x <= 0.0:
 		return
-	var target_ratio: float = 0.2
+	var target_ratio: float = get_sidebar_ratio()
 	var base_width: float = 260.0
 	var desired_width: float = viewport_size.x * target_ratio
 	var computed_scale: float = desired_width / base_width
@@ -601,6 +615,7 @@ func build_ui() -> void:
 		request_render()
 	)
 
+	update_sidebar_allocation()
 	update_grid_line_controls()
 
 	ui_ready = true
