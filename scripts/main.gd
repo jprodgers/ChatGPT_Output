@@ -10,6 +10,12 @@ const EDGE_FALLOFF: int = 2
 const DRAW_MODE_PAINT: int = 0
 const DRAW_MODE_ERASE: int = 1
 const DRAW_MODE_TOGGLE: int = 2
+const WALKER_DRAW_RANDOM: int = 0
+const WALKER_DRAW_UP: int = 1
+const WALKER_DRAW_RIGHT: int = 2
+const WALKER_DRAW_DOWN: int = 3
+const WALKER_DRAW_LEFT: int = 4
+const WALKER_DRAW_ERASE: int = 5
 
 var cell_size: int = 8
 var grid_size: Vector2i = Vector2i.ZERO
@@ -89,14 +95,27 @@ var turmite_count: int = 1
 var turmites: Array[Vector2i] = []
 var turmite_directions: Array[int] = []
 var turmite_colors: Array[Color] = []
+var turmite_draw_enabled: bool = false
+var turmite_draw_mode: int = WALKER_DRAW_RANDOM
 
 var ants: Array[Vector2i] = []
 var ant_directions: Array[int] = []
 var ant_colors: Array[Color] = []
+var ant_draw_enabled: bool = false
+var ant_draw_mode: int = WALKER_DRAW_RANDOM
 
 var seed_fill: float = 0.2
 var high_density_menu_scale: float = 2.0
 var auto_menu_scale: bool = true
+const SIDEBAR_MIN_RATIO: float = 0.1
+const SIDEBAR_MAX_RATIO: float = 0.3
+@export var sidebar_target_ratio: float = 0.2
+@export var sidebar_min_width: float = 260.0
+@export var sidebar_base_width: float = 260.0
+const SIDEBAR_BASE_FONT_SIZE: int = 14
+const SIDEBAR_BASE_SIDE_SEPARATION: int = 10
+const SIDEBAR_BASE_COLUMN_SEPARATION: int = 8
+const SIDEBAR_BASE_INFO_SEPARATION: int = 6
 
 var global_rate: float = 10.0
 
@@ -165,11 +184,19 @@ var sand_has_content: bool = false
 var sand_color_pickers: Array[ColorPickerButton] = []
 @onready var draw_mode_option: OptionButton = OptionButton.new()
 @onready var draw_toggle: CheckBox = CheckBox.new()
+@onready var ant_draw_toggle: CheckBox = CheckBox.new()
+@onready var ant_draw_mode_option: OptionButton = OptionButton.new()
+@onready var turmite_draw_toggle: CheckBox = CheckBox.new()
+@onready var turmite_draw_mode_option: OptionButton = OptionButton.new()
 @onready var sand_click_toggle: CheckBox = CheckBox.new()
 @onready var grid_line_toggle: CheckBox = CheckBox.new()
 @onready var grid_line_thickness_spin: SpinBox = SpinBox.new()
 @onready var grid_line_color_picker: ColorPickerButton = ColorPickerButton.new()
 @onready var export_dialog: FileDialog = FileDialog.new()
+var root_container: HBoxContainer = null
+var sidebar_layout_ref: VBoxContainer = null
+var controls_column_ref: VBoxContainer = null
+var info_row_ref: HBoxContainer = null
 
 func style_picker_button(picker: ColorPickerButton) -> void:
 	picker.custom_minimum_size = Vector2(32, 32)
@@ -271,23 +298,76 @@ func is_high_density_device() -> bool:
 	var size: Vector2i = DisplayServer.screen_get_size()
 	return max(size.x, size.y) >= 2560
 
+func get_sidebar_ratio() -> float:
+	return clamp(sidebar_target_ratio, SIDEBAR_MIN_RATIO, SIDEBAR_MAX_RATIO)
+
+func apply_sidebar_theme_scale(scale: float) -> void:
+	if sidebar_ref != null:
+		var font_size: int = int(round(SIDEBAR_BASE_FONT_SIZE * scale))
+		sidebar_ref.add_theme_font_size_override("font_size", font_size)
+	if sidebar_layout_ref != null:
+		sidebar_layout_ref.add_theme_constant_override("separation", int(round(SIDEBAR_BASE_SIDE_SEPARATION * scale)))
+	if controls_column_ref != null:
+		controls_column_ref.add_theme_constant_override("separation", int(round(SIDEBAR_BASE_COLUMN_SEPARATION * scale)))
+	if info_row_ref != null:
+		info_row_ref.add_theme_constant_override("separation", int(round(SIDEBAR_BASE_INFO_SEPARATION * scale)))
+
+func sync_turmite_rule_from_option() -> void:
+	if turmite_rule_option != null:
+		var selected_index: int = turmite_rule_option.get_selected()
+		if selected_index >= 0 and selected_index < turmite_rule_option.item_count:
+			var choice: String = turmite_rule_option.get_item_text(selected_index)
+			turmite_rule = choice
+
+func walker_draw_direction(mode: int, rng: RandomNumberGenerator) -> int:
+	match mode:
+		WALKER_DRAW_RANDOM:
+			return rng.randi_range(0, DIRS.size() - 1)
+		WALKER_DRAW_UP:
+			return 0
+		WALKER_DRAW_RIGHT:
+			return 1
+		WALKER_DRAW_DOWN:
+			return 2
+		WALKER_DRAW_LEFT:
+			return 3
+		_:
+			return -1
+
+func update_sidebar_allocation(effective_width: float = -1.0, ratio: float = -1.0) -> void:
+	if sidebar_ref == null or view_container == null:
+		return
+	if ratio < 0.0:
+		ratio = get_sidebar_ratio()
+	if effective_width < 0.0:
+		var viewport_size: Vector2 = Vector2(get_viewport_rect().size)
+		var desired_width: float = viewport_size.x * ratio if viewport_size.x > 0.0 else sidebar_min_width
+		effective_width = max(sidebar_min_width, desired_width)
+	sidebar_ref.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	view_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sidebar_ref.custom_minimum_size.x = max(sidebar_min_width, effective_width)
+	sidebar_ref.size_flags_stretch_ratio = ratio
+	view_container.size_flags_stretch_ratio = max(0.001, 1.0 - ratio)
+
 func update_sidebar_scale() -> void:
 	if sidebar_ref == null:
 		return
+	var viewport_size: Vector2 = Vector2(get_viewport_rect().size)
+	var ratio: float = get_sidebar_ratio()
+	var desired_width: float = viewport_size.x * ratio if viewport_size.x > 0.0 else sidebar_min_width
+	var effective_width: float = max(sidebar_min_width, desired_width)
+	update_sidebar_allocation(effective_width, ratio)
 	if not auto_menu_scale:
 		sidebar_ref.scale = Vector2.ONE
 		return
-	var viewport_size: Vector2 = Vector2(get_viewport_rect().size)
 	if viewport_size.x <= 0.0:
 		return
-	var target_ratio: float = 0.2
-	var base_width: float = 260.0
-	var desired_width: float = viewport_size.x * target_ratio
-	var computed_scale: float = desired_width / base_width
+	var computed_scale: float = effective_width / max(1.0, sidebar_base_width)
 	if is_high_density_device():
 		computed_scale = max(computed_scale, high_density_menu_scale)
 	var clamped: float = clamp(computed_scale, 0.75, 3.0)
 	sidebar_ref.scale = Vector2(clamped, clamped)
+	apply_sidebar_theme_scale(clamped)
 
 func update_grid_line_controls() -> void:
 	grid_line_thickness_spin.editable = grid_lines_enabled
@@ -482,44 +562,44 @@ func _grid_sim_busy() -> bool:
 	return false
 
 func build_ui() -> void:
-	var root: HBoxContainer = HBoxContainer.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("separation", 8)
-	add_child(root)
+	root_container = HBoxContainer.new()
+	root_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root_container.add_theme_constant_override("separation", 8)
+	add_child(root_container)
 
 	sidebar_ref = PanelContainer.new()
-	sidebar_ref.custom_minimum_size = Vector2(260, 0)
-	sidebar_ref.size_flags_horizontal = Control.SIZE_FILL
+	sidebar_ref.custom_minimum_size = Vector2(sidebar_min_width, 0)
+	sidebar_ref.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sidebar_ref.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(sidebar_ref)
+	root_container.add_child(sidebar_ref)
 
-	var sidebar_layout: VBoxContainer = VBoxContainer.new()
-	sidebar_layout.add_theme_constant_override("separation", 10)
-	sidebar_ref.add_child(sidebar_layout)
+	sidebar_layout_ref = VBoxContainer.new()
+	sidebar_layout_ref.add_theme_constant_override("separation", SIDEBAR_BASE_SIDE_SEPARATION)
+	sidebar_ref.add_child(sidebar_layout_ref)
 
 	var title: Label = Label.new()
 	title.text = "Shader-friendly Cellular Automata"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	title.add_theme_font_size_override("font_size", 18)
-	sidebar_layout.add_child(title)
+	sidebar_layout_ref.add_child(title)
 
-	var info_row: HBoxContainer = HBoxContainer.new()
-	info_row.add_theme_constant_override("separation", 6)
-	info_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sidebar_layout.add_child(info_row)
+	info_row_ref = HBoxContainer.new()
+	info_row_ref.add_theme_constant_override("separation", SIDEBAR_BASE_INFO_SEPARATION)
+	info_row_ref.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sidebar_layout_ref.add_child(info_row_ref)
 
 	set_info_label_text("Grid ready")
 	info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	info_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	info_label.clip_text = true
-	info_row.add_child(info_label)
+	info_row_ref.add_child(info_label)
 
 	play_button.text = "Play" if is_paused else "Pause"
 	play_button.pressed.connect(func() -> void:
 		is_paused = !is_paused
 		play_button.text = "Play" if is_paused else "Pause"
 	)
-	info_row.add_child(play_button)
+	info_row_ref.add_child(play_button)
 	register_help(play_button, "Toggle play and pause for all simulations.")
 
 	var step_button: Button = Button.new()
@@ -527,7 +607,7 @@ func build_ui() -> void:
 	step_button.pressed.connect(func() -> void:
 		step_requested = true
 	)
-	info_row.add_child(step_button)
+	info_row_ref.add_child(step_button)
 	register_help(step_button, "Advance every enabled simulation by a single update without starting auto-play.")
 
 	help_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -542,12 +622,12 @@ func build_ui() -> void:
 	help_panel.visible = false
 	help_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	help_panel.add_child(help_margin)
-	sidebar_layout.add_child(help_panel)
+	sidebar_layout_ref.add_child(help_panel)
 
 	var scroll: ScrollContainer = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sidebar_layout.add_child(scroll)
+	sidebar_layout_ref.add_child(scroll)
 
 	export_dialog.access = FileDialog.ACCESS_FILESYSTEM
 	export_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
@@ -562,26 +642,26 @@ func build_ui() -> void:
 	)
 	add_child(export_dialog)
 
-	var controls_column: VBoxContainer = VBoxContainer.new()
-	controls_column.add_theme_constant_override("separation", 8)
-	scroll.add_child(controls_column)
+	controls_column_ref = VBoxContainer.new()
+	controls_column_ref.add_theme_constant_override("separation", SIDEBAR_BASE_COLUMN_SEPARATION)
+	scroll.add_child(controls_column_ref)
 
-	controls_column.add_child(build_collapsible_section("Grid", build_grid_controls(), "Control grid size, edge wrapping, colors, drawing, and update speed for every simulation."))
-	controls_column.add_child(build_collapsible_section("Export", build_export_controls(), "Set a filename pattern and export the current view to a PNG file."))
-	controls_column.add_child(build_collapsible_section("Wolfram", build_wolfram_controls(), "1D cellular automaton using Wolfram rules. Seed a row, then press Step or enable Auto to watch the rows accumulate."))
-	controls_column.add_child(build_collapsible_section("Langton's Ant", build_ant_controls(), "Spawn ants that turn right on black and left on white, flipping the cell each time. Use Auto to let them roam or Step for manual moves."))
-	controls_column.add_child(build_collapsible_section("Turmite", build_turmite_controls(), "Generalized Langton ants that follow custom turn rules. Spawn turmites, then Step or enable Auto to see their trails."))
-	controls_column.add_child(build_collapsible_section("Game of Life", build_gol_controls(), "Conway's Game of Life. Set a step rate, seed the grid, then Auto or Step to evolve the pattern."))
-	controls_column.add_child(build_collapsible_section("Day & Night", build_day_night_controls(), "Day & Night variant of Life with symmetric rules. Seed the grid, then Step or Auto to run the simulation."))
-	controls_column.add_child(build_collapsible_section("Seeds", build_seeds_controls(), "Seeds automaton (birth on 2, no survival). Populate the grid and use Step or Auto to advance."))
-	controls_column.add_child(build_collapsible_section("Sandpile", build_sand_controls(), "Toppling sandpile. Drop sand piles and run steps to watch grains cascade. Auto keeps the pile flowing."))
+	controls_column_ref.add_child(build_collapsible_section("Grid", build_grid_controls(), "Control grid size, edge wrapping, colors, drawing, and update speed for every simulation."))
+	controls_column_ref.add_child(build_collapsible_section("Export", build_export_controls(), "Set a filename pattern and export the current view to a PNG file."))
+	controls_column_ref.add_child(build_collapsible_section("Wolfram", build_wolfram_controls(), "1D cellular automaton using Wolfram rules. Seed a row, then press Step or enable Auto to watch the rows accumulate."))
+	controls_column_ref.add_child(build_collapsible_section("Langton's Ant", build_ant_controls(), "Spawn ants that turn right on black and left on white, flipping the cell each time. Use Auto to let them roam or Step for manual moves."))
+	controls_column_ref.add_child(build_collapsible_section("Turmite", build_turmite_controls(), "Generalized Langton ants that follow custom turn rules. Spawn turmites, then Step or enable Auto to see their trails."))
+	controls_column_ref.add_child(build_collapsible_section("Game of Life", build_gol_controls(), "Conway's Game of Life. Set a step rate, seed the grid, then Auto or Step to evolve the pattern."))
+	controls_column_ref.add_child(build_collapsible_section("Day & Night", build_day_night_controls(), "Day & Night variant of Life with symmetric rules. Seed the grid, then Step or Auto to run the simulation."))
+	controls_column_ref.add_child(build_collapsible_section("Seeds", build_seeds_controls(), "Seeds automaton (birth on 2, no survival). Populate the grid and use Step or Auto to advance."))
+	controls_column_ref.add_child(build_collapsible_section("Sandpile", build_sand_controls(), "Toppling sandpile. Drop sand piles and run steps to watch grains cascade. Auto keeps the pile flowing."))
 
 	view_container = Panel.new()
 	view_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	view_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	view_container.custom_minimum_size = Vector2(200, 200)
 	view_container.clip_contents = true
-	root.add_child(view_container)
+	root_container.add_child(view_container)
 
 	grid_view.stretch_mode = TextureRect.STRETCH_SCALE
 	grid_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
@@ -949,6 +1029,35 @@ func build_ant_controls() -> VBoxContainer:
 	register_help(ant_rate_spin, "Steps each ant takes per global update (whole numbers only).")
 	box.add_child(rate_row)
 
+	var draw_row: HBoxContainer = HBoxContainer.new()
+	var draw_label: Label = Label.new()
+	draw_label.text = "Draw"
+	draw_row.add_child(draw_label)
+	ant_draw_toggle.text = "Enable"
+	ant_draw_toggle.button_pressed = ant_draw_enabled
+	ant_draw_toggle.toggled.connect(func(enabled: bool) -> void:
+		ant_draw_enabled = enabled
+		if not any_draw_enabled():
+			drawing_active = false
+	)
+	draw_row.add_child(ant_draw_toggle)
+	ant_draw_mode_option.clear()
+	ant_draw_mode_option.add_item("Random", WALKER_DRAW_RANDOM)
+	ant_draw_mode_option.add_item("Up", WALKER_DRAW_UP)
+	ant_draw_mode_option.add_item("Down", WALKER_DRAW_DOWN)
+	ant_draw_mode_option.add_item("Left", WALKER_DRAW_LEFT)
+	ant_draw_mode_option.add_item("Right", WALKER_DRAW_RIGHT)
+	ant_draw_mode_option.add_item("Erase", WALKER_DRAW_ERASE)
+	var ant_draw_index: int = ant_draw_mode_option.get_item_index(ant_draw_mode)
+	ant_draw_mode_option.select(ant_draw_index if ant_draw_index >= 0 else 0)
+	ant_draw_mode_option.item_selected.connect(func(index: int) -> void:
+		ant_draw_mode = ant_draw_mode_option.get_item_id(index)
+	)
+	draw_row.add_child(ant_draw_mode_option)
+	register_help(ant_draw_toggle, "Enable click-to-place ants using the selected direction.")
+	register_help(ant_draw_mode_option, "Pick the direction for newly placed ants or Erase to remove ants on click.")
+	box.add_child(draw_row)
+
 	var buttons: HBoxContainer = HBoxContainer.new()
 	var toggle: CheckBox = CheckBox.new()
 	toggle.text = "Auto"
@@ -1253,6 +1362,35 @@ func build_turmite_controls() -> VBoxContainer:
 	register_help(turmite_rate_spin, "Steps per update for every turmite (whole numbers only).")
 	box.add_child(rate_row)
 
+	var draw_row: HBoxContainer = HBoxContainer.new()
+	var draw_label: Label = Label.new()
+	draw_label.text = "Draw"
+	draw_row.add_child(draw_label)
+	turmite_draw_toggle.text = "Enable"
+	turmite_draw_toggle.button_pressed = turmite_draw_enabled
+	turmite_draw_toggle.toggled.connect(func(enabled: bool) -> void:
+		turmite_draw_enabled = enabled
+		if not any_draw_enabled():
+			drawing_active = false
+	)
+	draw_row.add_child(turmite_draw_toggle)
+	turmite_draw_mode_option.clear()
+	turmite_draw_mode_option.add_item("Random", WALKER_DRAW_RANDOM)
+	turmite_draw_mode_option.add_item("Up", WALKER_DRAW_UP)
+	turmite_draw_mode_option.add_item("Down", WALKER_DRAW_DOWN)
+	turmite_draw_mode_option.add_item("Left", WALKER_DRAW_LEFT)
+	turmite_draw_mode_option.add_item("Right", WALKER_DRAW_RIGHT)
+	turmite_draw_mode_option.add_item("Erase", WALKER_DRAW_ERASE)
+	var turmite_draw_index: int = turmite_draw_mode_option.get_item_index(turmite_draw_mode)
+	turmite_draw_mode_option.select(turmite_draw_index if turmite_draw_index >= 0 else 0)
+	turmite_draw_mode_option.item_selected.connect(func(index: int) -> void:
+		turmite_draw_mode = turmite_draw_mode_option.get_item_id(index)
+	)
+	draw_row.add_child(turmite_draw_mode_option)
+	register_help(turmite_draw_toggle, "Enable click-to-place turmites using the selected direction.")
+	register_help(turmite_draw_mode_option, "Pick the direction for newly placed turmites or Erase to remove turmites on click.")
+	box.add_child(draw_row)
+
 	var buttons: HBoxContainer = HBoxContainer.new()
 	var toggle: CheckBox = CheckBox.new()
 	toggle.text = "Auto"
@@ -1441,6 +1579,41 @@ func apply_draw_action(pos: Vector2i) -> bool:
 	changed = remove_turmites_at(pos) or changed
 	return changed
 
+func add_ant_at(pos: Vector2i, direction: int, color: Color) -> bool:
+	if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
+		return false
+	var changed: bool = remove_ants_at(pos)
+	ants.append(pos)
+	ant_directions.append(direction % DIRS.size())
+	ant_colors.append(color)
+	return true
+
+func add_turmite_at(pos: Vector2i, direction: int, color: Color) -> bool:
+	if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
+		return false
+	var changed: bool = remove_turmites_at(pos)
+	turmites.append(pos)
+	turmite_directions.append(direction % DIRS.size())
+	turmite_colors.append(color)
+	return true
+
+func apply_ant_draw_action(pos: Vector2i) -> bool:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.randomize()
+	var dir: int = walker_draw_direction(ant_draw_mode, rng)
+	if ant_draw_mode == WALKER_DRAW_ERASE or dir < 0:
+		return remove_ants_at(pos)
+	return add_ant_at(pos, dir, ant_color_picker.color)
+
+func apply_turmite_draw_action(pos: Vector2i) -> bool:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.randomize()
+	sync_turmite_rule_from_option()
+	var dir: int = walker_draw_direction(turmite_draw_mode, rng)
+	if turmite_draw_mode == WALKER_DRAW_ERASE or dir < 0:
+		return remove_turmites_at(pos)
+	return add_turmite_at(pos, dir, turmite_color_picker.color)
+
 func local_to_cell(local_pos: Vector2) -> Vector2i:
 	if grid_size.x <= 0 or grid_size.y <= 0:
 		return Vector2i(-1, -1)
@@ -1450,6 +1623,19 @@ func local_to_cell(local_pos: Vector2) -> Vector2i:
 	var gx: int = int(floor(local_pos.x / size.x * float(grid_size.x)))
 	var gy: int = int(floor(local_pos.y / size.y * float(grid_size.y)))
 	return Vector2i(clamp(gx, 0, grid_size.x - 1), clamp(gy, 0, grid_size.y - 1))
+
+func any_draw_enabled() -> bool:
+	return draw_enabled or ant_draw_enabled or turmite_draw_enabled
+
+func apply_draw_targets(pos: Vector2i) -> bool:
+	var changed: bool = false
+	if ant_draw_enabled:
+		changed = apply_ant_draw_action(pos) or changed
+	if turmite_draw_enabled:
+		changed = apply_turmite_draw_action(pos) or changed
+	if not ant_draw_enabled and not turmite_draw_enabled and draw_enabled:
+		changed = apply_draw_action(pos) or changed
+	return changed
 
 func handle_draw_input(global_pos: Vector2) -> bool:
 	var rect: Rect2 = grid_view.get_global_rect()
@@ -1461,7 +1647,7 @@ func handle_draw_input(global_pos: Vector2) -> bool:
 	var pos: Vector2i = local_to_cell(local)
 	if pos.x < 0 or pos.y < 0:
 		return false
-	var changed: bool = apply_draw_action(pos)
+	var changed: bool = apply_draw_targets(pos)
 	if changed:
 		request_render()
 	return changed
@@ -1470,7 +1656,7 @@ func handle_draw_local(local_pos: Vector2) -> bool:
 	var pos: Vector2i = local_to_cell(local_pos)
 	if pos.x < 0 or pos.y < 0:
 		return false
-	var changed: bool = apply_draw_action(pos)
+	var changed: bool = apply_draw_targets(pos)
 	if changed:
 		request_render()
 	return changed
@@ -3421,7 +3607,7 @@ func on_grid_gui_input(event: InputEvent) -> void:
 				request_render()
 				handled = true
 
-	if not draw_enabled:
+	if not any_draw_enabled():
 		if handled:
 			accept_event()
 		return
@@ -3453,7 +3639,7 @@ func on_grid_gui_input(event: InputEvent) -> void:
 		accept_event()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not draw_enabled:
+	if not any_draw_enabled():
 		return
 	if event is InputEventMouseButton:
 		var mouse_event: InputEventMouseButton = event as InputEventMouseButton
