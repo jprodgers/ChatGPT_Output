@@ -1971,6 +1971,7 @@ func step_turmites(use_workers: bool = true) -> void:
 	var rule_upper: String = turmite_rule.to_upper()
 	if rule_upper.length() < 2:
 		rule_upper = "RL"
+	var rule_len: int = rule_upper.length()
 	for i in range(turmites.size()):
 		var pos: Vector2i = turmites[i]
 		if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
@@ -1979,14 +1980,14 @@ func step_turmites(use_workers: bool = true) -> void:
 
 		var idx: int = pos.y * grid_size.x + pos.x
 		var current: int = grid[idx]
-		var rule_idx: int = clamp(current, 0, rule_upper.length() - 1)
+		var rule_idx: int = current % rule_len
 		var turn: String = rule_upper[rule_idx]
 		if turn == "R":
 			turmite_directions[i] = (turmite_directions[i] + 1) % DIRS.size()
 		else:
 			turmite_directions[i] = (turmite_directions[i] + DIRS.size() - 1) % DIRS.size()
 
-		grid[idx] = 1 - current
+		grid[idx] = (current + 1) % rule_len
 
 		var next: Vector2i = pos + DIRS[turmite_directions[i]]
 		if edge_mode == EDGE_WRAP:
@@ -2536,6 +2537,7 @@ static func _compute_turmites_secondary(grid_in: PackedByteArray, grid_size_in: 
 	var rule_upper: String = rule.to_upper()
 	if rule_upper.length() < 2:
 		rule_upper = "RL"
+	var rule_len: int = rule_upper.length()
 	var next_ants: Array = []
 	var next_dirs: Array = []
 	var next_colors: Array = []
@@ -2550,13 +2552,13 @@ static func _compute_turmites_secondary(grid_in: PackedByteArray, grid_size_in: 
 			dir += DIRS.size()
 		var idx: int = pos.y * grid_size_in.x + pos.x
 		var current: int = next_grid[idx]
-		var rule_idx: int = clamp(current, 0, rule_upper.length() - 1)
+		var rule_idx: int = current % rule_len
 		var turn: String = rule_upper[rule_idx]
 		if turn == "R":
 			dir = (dir + 1) % DIRS.size()
 		else:
 			dir = (dir + DIRS.size() - 1) % DIRS.size()
-		next_grid[idx] = 1 - current
+		next_grid[idx] = (current + 1) % rule_len
 		var next: Vector2i = pos + DIRS[dir]
 		match edge_mode_in:
 			EDGE_WRAP:
@@ -2750,6 +2752,7 @@ static func _compute_turmites(grid_in: PackedByteArray, grid_size_in: Vector2i, 
 	var rule_upper: String = rule.to_upper()
 	if rule_upper.length() < 2:
 		rule_upper = "RL"
+	var rule_len: int = rule_upper.length()
 	var next_ants: Array = []
 	var next_dirs: Array = []
 	var next_colors: Array = []
@@ -2764,13 +2767,13 @@ static func _compute_turmites(grid_in: PackedByteArray, grid_size_in: Vector2i, 
 			dir += DIRS.size()
 		var idx: int = pos.y * grid_size_in.x + pos.x
 		var current: int = next_grid[idx]
-		var rule_idx: int = clamp(current, 0, rule_upper.length() - 1)
+		var rule_idx: int = current % rule_len
 		var turn: String = rule_upper[rule_idx]
 		if turn == "R":
 			dir = (dir + 1) % DIRS.size()
 		else:
 			dir = (dir + DIRS.size() - 1) % DIRS.size()
-		next_grid[idx] = 1 - current
+		next_grid[idx] = (current + 1) % rule_len
 		var next: Vector2i = pos + DIRS[dir]
 		match edge_mode_in:
 			EDGE_WRAP:
@@ -2964,6 +2967,7 @@ static func _thread_compute_turmites(grid_in: PackedByteArray, grid_size_in: Vec
 	var rule_upper: String = rule.to_upper()
 	if rule_upper.length() < 2:
 		rule_upper = "RL"
+	var rule_len: int = rule_upper.length()
 	var next_ants: Array = []
 	var next_dirs: Array = []
 	var next_colors: Array = []
@@ -2978,13 +2982,13 @@ static func _thread_compute_turmites(grid_in: PackedByteArray, grid_size_in: Vec
 			dir += DIRS.size()
 		var idx: int = pos.y * grid_size_in.x + pos.x
 		var current: int = next_grid[idx]
-		var rule_idx: int = clamp(current, 0, rule_upper.length() - 1)
+		var rule_idx: int = current % rule_len
 		var turn: String = rule_upper[rule_idx]
 		if turn == "R":
 			dir = (dir + 1) % DIRS.size()
 		else:
 			dir = (dir + DIRS.size() - 1) % DIRS.size()
-		next_grid[idx] = 1 - current
+		next_grid[idx] = (current + 1) % rule_len
 		var next: Vector2i = pos + DIRS[dir]
 		match edge_mode_in:
 			EDGE_WRAP:
@@ -3186,6 +3190,7 @@ static func _sim_turmites_worker(grid_in: PackedByteArray, grid_size_in: Vector2
 	var rule_upper: String = rule.to_upper()
 	if rule_upper.length() < 2:
 		rule_upper = "RL"
+	var rule_len: int = rule_upper.length()
 	var next_ants: Array = []
 	var next_dirs: Array = []
 	var next_colors: Array = []
@@ -3200,13 +3205,13 @@ static func _sim_turmites_worker(grid_in: PackedByteArray, grid_size_in: Vector2
 			dir += DIRS.size()
 		var idx: int = pos.y * grid_size_in.x + pos.x
 		var current: int = next_grid[idx]
-		var rule_idx: int = clamp(current, 0, rule_upper.length() - 1)
+		var rule_idx: int = current % rule_len
 		var turn: String = rule_upper[rule_idx]
 		if turn == "R":
 			dir = (dir + 1) % DIRS.size()
 		else:
 			dir = (dir + DIRS.size() - 1) % DIRS.size()
-		next_grid[idx] = 1 - current
+		next_grid[idx] = (current + 1) % rule_len
 		var next: Vector2i = pos + DIRS[dir]
 		match edge_mode_in:
 			EDGE_WRAP:
@@ -3440,6 +3445,7 @@ static func sim_job_turmites(grid_in: PackedByteArray, grid_size_in: Vector2i, e
 	var rule_upper: String = rule.to_upper()
 	if rule_upper.length() < 2:
 		rule_upper = "RL"
+	var rule_len: int = rule_upper.length()
 	var next_ants: Array = []
 	var next_dirs: Array = []
 	var next_colors: Array = []
@@ -3454,13 +3460,13 @@ static func sim_job_turmites(grid_in: PackedByteArray, grid_size_in: Vector2i, e
 			dir += DIRS.size()
 		var idx: int = pos.y * grid_size_in.x + pos.x
 		var current: int = next_grid[idx]
-		var rule_idx: int = clamp(current, 0, rule_upper.length() - 1)
+		var rule_idx: int = current % rule_len
 		var turn: String = rule_upper[rule_idx]
 		if turn == "R":
 			dir = (dir + 1) % DIRS.size()
 		else:
 			dir = (dir + DIRS.size() - 1) % DIRS.size()
-		next_grid[idx] = 1 - current
+		next_grid[idx] = (current + 1) % rule_len
 		var next: Vector2i = pos + DIRS[dir]
 		match edge_mode_in:
 			EDGE_WRAP:
