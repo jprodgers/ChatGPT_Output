@@ -312,6 +312,13 @@ func apply_sidebar_theme_scale(scale: float) -> void:
 	if info_row_ref != null:
 		info_row_ref.add_theme_constant_override("separation", int(round(SIDEBAR_BASE_INFO_SEPARATION * scale)))
 
+func sync_turmite_rule_from_option() -> void:
+	if turmite_rule_option != null:
+		var selected_index: int = turmite_rule_option.get_selected()
+		if selected_index >= 0 and selected_index < turmite_rule_option.item_count:
+			var choice: String = turmite_rule_option.get_item_text(selected_index)
+			turmite_rule = choice
+
 func walker_draw_direction(mode: int, rng: RandomNumberGenerator) -> int:
 	match mode:
 		WALKER_DRAW_RANDOM:
@@ -1602,6 +1609,7 @@ func apply_ant_draw_action(pos: Vector2i) -> bool:
 func apply_turmite_draw_action(pos: Vector2i) -> bool:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.randomize()
+	sync_turmite_rule_from_option()
 	var dir: int = walker_draw_direction(turmite_draw_mode, rng)
 	if turmite_draw_mode == WALKER_DRAW_ERASE or dir < 0:
 		return remove_turmites_at(pos)
