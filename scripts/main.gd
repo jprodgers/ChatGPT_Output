@@ -97,6 +97,15 @@ var ant_colors: Array[Color] = []
 var seed_fill: float = 0.2
 var high_density_menu_scale: float = 2.0
 var auto_menu_scale: bool = true
+const SIDEBAR_MIN_RATIO: float = 0.1
+const SIDEBAR_MAX_RATIO: float = 0.3
+@export var sidebar_target_ratio: float = 0.2
+@export var sidebar_min_width: float = 260.0
+@export var sidebar_base_width: float = 260.0
+const SIDEBAR_BASE_FONT_SIZE: int = 14
+const SIDEBAR_BASE_SIDE_SEPARATION: int = 10
+const SIDEBAR_BASE_COLUMN_SEPARATION: int = 8
+const SIDEBAR_BASE_INFO_SEPARATION: int = 6
 
 var global_rate: float = 10.0
 
@@ -170,6 +179,10 @@ var sand_color_pickers: Array[ColorPickerButton] = []
 @onready var grid_line_thickness_spin: SpinBox = SpinBox.new()
 @onready var grid_line_color_picker: ColorPickerButton = ColorPickerButton.new()
 @onready var export_dialog: FileDialog = FileDialog.new()
+var root_container: HBoxContainer = null
+var sidebar_layout_ref: VBoxContainer = null
+var controls_column_ref: VBoxContainer = null
+var info_row_ref: HBoxContainer = null
 
 func style_picker_button(picker: ColorPickerButton) -> void:
 	picker.custom_minimum_size = Vector2(32, 32)
@@ -271,23 +284,54 @@ func is_high_density_device() -> bool:
 	var size: Vector2i = DisplayServer.screen_get_size()
 	return max(size.x, size.y) >= 2560
 
+func get_sidebar_ratio() -> float:
+	return clamp(sidebar_target_ratio, SIDEBAR_MIN_RATIO, SIDEBAR_MAX_RATIO)
+
+func apply_sidebar_theme_scale(scale: float) -> void:
+	if sidebar_ref != null:
+		var font_size: int = int(round(SIDEBAR_BASE_FONT_SIZE * scale))
+		sidebar_ref.add_theme_font_size_override("font_size", font_size)
+	if sidebar_layout_ref != null:
+		sidebar_layout_ref.add_theme_constant_override("separation", int(round(SIDEBAR_BASE_SIDE_SEPARATION * scale)))
+	if controls_column_ref != null:
+		controls_column_ref.add_theme_constant_override("separation", int(round(SIDEBAR_BASE_COLUMN_SEPARATION * scale)))
+	if info_row_ref != null:
+		info_row_ref.add_theme_constant_override("separation", int(round(SIDEBAR_BASE_INFO_SEPARATION * scale)))
+
+func update_sidebar_allocation(effective_width: float = -1.0, ratio: float = -1.0) -> void:
+	if sidebar_ref == null or view_container == null:
+		return
+	if ratio < 0.0:
+		ratio = get_sidebar_ratio()
+	if effective_width < 0.0:
+		var viewport_size: Vector2 = Vector2(get_viewport_rect().size)
+		var desired_width: float = viewport_size.x * ratio if viewport_size.x > 0.0 else sidebar_min_width
+		effective_width = max(sidebar_min_width, desired_width)
+	sidebar_ref.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	view_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sidebar_ref.custom_minimum_size.x = max(sidebar_min_width, effective_width)
+	sidebar_ref.size_flags_stretch_ratio = ratio
+	view_container.size_flags_stretch_ratio = max(0.001, 1.0 - ratio)
+
 func update_sidebar_scale() -> void:
 	if sidebar_ref == null:
 		return
+	var viewport_size: Vector2 = Vector2(get_viewport_rect().size)
+	var ratio: float = get_sidebar_ratio()
+	var desired_width: float = viewport_size.x * ratio if viewport_size.x > 0.0 else sidebar_min_width
+	var effective_width: float = max(sidebar_min_width, desired_width)
+	update_sidebar_allocation(effective_width, ratio)
 	if not auto_menu_scale:
 		sidebar_ref.scale = Vector2.ONE
 		return
-	var viewport_size: Vector2 = Vector2(get_viewport_rect().size)
 	if viewport_size.x <= 0.0:
 		return
-	var target_ratio: float = 0.2
-	var base_width: float = 260.0
-	var desired_width: float = viewport_size.x * target_ratio
-	var computed_scale: float = desired_width / base_width
+	var computed_scale: float = effective_width / max(1.0, sidebar_base_width)
 	if is_high_density_device():
 		computed_scale = max(computed_scale, high_density_menu_scale)
 	var clamped: float = clamp(computed_scale, 0.75, 3.0)
 	sidebar_ref.scale = Vector2(clamped, clamped)
+	apply_sidebar_theme_scale(clamped)
 
 func update_grid_line_controls() -> void:
 	grid_line_thickness_spin.editable = grid_lines_enabled
@@ -482,44 +526,44 @@ func _grid_sim_busy() -> bool:
 	return false
 
 func build_ui() -> void:
-	var root: HBoxContainer = HBoxContainer.new()
-	root.set_anchors_preset(Control.PRESET_FULL_RECT)
-	root.add_theme_constant_override("separation", 8)
-	add_child(root)
+	root_container = HBoxContainer.new()
+	root_container.set_anchors_preset(Control.PRESET_FULL_RECT)
+	root_container.add_theme_constant_override("separation", 8)
+	add_child(root_container)
 
 	sidebar_ref = PanelContainer.new()
-	sidebar_ref.custom_minimum_size = Vector2(260, 0)
-	sidebar_ref.size_flags_horizontal = Control.SIZE_FILL
+	sidebar_ref.custom_minimum_size = Vector2(sidebar_min_width, 0)
+	sidebar_ref.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	sidebar_ref.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	root.add_child(sidebar_ref)
+	root_container.add_child(sidebar_ref)
 
-	var sidebar_layout: VBoxContainer = VBoxContainer.new()
-	sidebar_layout.add_theme_constant_override("separation", 10)
-	sidebar_ref.add_child(sidebar_layout)
+	sidebar_layout_ref = VBoxContainer.new()
+	sidebar_layout_ref.add_theme_constant_override("separation", SIDEBAR_BASE_SIDE_SEPARATION)
+	sidebar_ref.add_child(sidebar_layout_ref)
 
 	var title: Label = Label.new()
 	title.text = "Shader-friendly Cellular Automata"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	title.add_theme_font_size_override("font_size", 18)
-	sidebar_layout.add_child(title)
+	sidebar_layout_ref.add_child(title)
 
-	var info_row: HBoxContainer = HBoxContainer.new()
-	info_row.add_theme_constant_override("separation", 6)
-	info_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sidebar_layout.add_child(info_row)
+	info_row_ref = HBoxContainer.new()
+	info_row_ref.add_theme_constant_override("separation", SIDEBAR_BASE_INFO_SEPARATION)
+	info_row_ref.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	sidebar_layout_ref.add_child(info_row_ref)
 
 	set_info_label_text("Grid ready")
 	info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	info_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	info_label.clip_text = true
-	info_row.add_child(info_label)
+	info_row_ref.add_child(info_label)
 
 	play_button.text = "Play" if is_paused else "Pause"
 	play_button.pressed.connect(func() -> void:
 		is_paused = !is_paused
 		play_button.text = "Play" if is_paused else "Pause"
 	)
-	info_row.add_child(play_button)
+	info_row_ref.add_child(play_button)
 	register_help(play_button, "Toggle play and pause for all simulations.")
 
 	var step_button: Button = Button.new()
@@ -527,7 +571,7 @@ func build_ui() -> void:
 	step_button.pressed.connect(func() -> void:
 		step_requested = true
 	)
-	info_row.add_child(step_button)
+	info_row_ref.add_child(step_button)
 	register_help(step_button, "Advance every enabled simulation by a single update without starting auto-play.")
 
 	help_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -542,12 +586,12 @@ func build_ui() -> void:
 	help_panel.visible = false
 	help_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	help_panel.add_child(help_margin)
-	sidebar_layout.add_child(help_panel)
+	sidebar_layout_ref.add_child(help_panel)
 
 	var scroll: ScrollContainer = ScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	sidebar_layout.add_child(scroll)
+	sidebar_layout_ref.add_child(scroll)
 
 	export_dialog.access = FileDialog.ACCESS_FILESYSTEM
 	export_dialog.file_mode = FileDialog.FILE_MODE_SAVE_FILE
@@ -562,26 +606,26 @@ func build_ui() -> void:
 	)
 	add_child(export_dialog)
 
-	var controls_column: VBoxContainer = VBoxContainer.new()
-	controls_column.add_theme_constant_override("separation", 8)
-	scroll.add_child(controls_column)
+	controls_column_ref = VBoxContainer.new()
+	controls_column_ref.add_theme_constant_override("separation", SIDEBAR_BASE_COLUMN_SEPARATION)
+	scroll.add_child(controls_column_ref)
 
-	controls_column.add_child(build_collapsible_section("Grid", build_grid_controls(), "Control grid size, edge wrapping, colors, drawing, and update speed for every simulation."))
-	controls_column.add_child(build_collapsible_section("Export", build_export_controls(), "Set a filename pattern and export the current view to a PNG file."))
-	controls_column.add_child(build_collapsible_section("Wolfram", build_wolfram_controls(), "1D cellular automaton using Wolfram rules. Seed a row, then press Step or enable Auto to watch the rows accumulate."))
-	controls_column.add_child(build_collapsible_section("Langton's Ant", build_ant_controls(), "Spawn ants that turn right on black and left on white, flipping the cell each time. Use Auto to let them roam or Step for manual moves."))
-	controls_column.add_child(build_collapsible_section("Turmite", build_turmite_controls(), "Generalized Langton ants that follow custom turn rules. Spawn turmites, then Step or enable Auto to see their trails."))
-	controls_column.add_child(build_collapsible_section("Game of Life", build_gol_controls(), "Conway's Game of Life. Set a step rate, seed the grid, then Auto or Step to evolve the pattern."))
-	controls_column.add_child(build_collapsible_section("Day & Night", build_day_night_controls(), "Day & Night variant of Life with symmetric rules. Seed the grid, then Step or Auto to run the simulation."))
-	controls_column.add_child(build_collapsible_section("Seeds", build_seeds_controls(), "Seeds automaton (birth on 2, no survival). Populate the grid and use Step or Auto to advance."))
-	controls_column.add_child(build_collapsible_section("Sandpile", build_sand_controls(), "Toppling sandpile. Drop sand piles and run steps to watch grains cascade. Auto keeps the pile flowing."))
+	controls_column_ref.add_child(build_collapsible_section("Grid", build_grid_controls(), "Control grid size, edge wrapping, colors, drawing, and update speed for every simulation."))
+	controls_column_ref.add_child(build_collapsible_section("Export", build_export_controls(), "Set a filename pattern and export the current view to a PNG file."))
+	controls_column_ref.add_child(build_collapsible_section("Wolfram", build_wolfram_controls(), "1D cellular automaton using Wolfram rules. Seed a row, then press Step or enable Auto to watch the rows accumulate."))
+	controls_column_ref.add_child(build_collapsible_section("Langton's Ant", build_ant_controls(), "Spawn ants that turn right on black and left on white, flipping the cell each time. Use Auto to let them roam or Step for manual moves."))
+	controls_column_ref.add_child(build_collapsible_section("Turmite", build_turmite_controls(), "Generalized Langton ants that follow custom turn rules. Spawn turmites, then Step or enable Auto to see their trails."))
+	controls_column_ref.add_child(build_collapsible_section("Game of Life", build_gol_controls(), "Conway's Game of Life. Set a step rate, seed the grid, then Auto or Step to evolve the pattern."))
+	controls_column_ref.add_child(build_collapsible_section("Day & Night", build_day_night_controls(), "Day & Night variant of Life with symmetric rules. Seed the grid, then Step or Auto to run the simulation."))
+	controls_column_ref.add_child(build_collapsible_section("Seeds", build_seeds_controls(), "Seeds automaton (birth on 2, no survival). Populate the grid and use Step or Auto to advance."))
+	controls_column_ref.add_child(build_collapsible_section("Sandpile", build_sand_controls(), "Toppling sandpile. Drop sand piles and run steps to watch grains cascade. Auto keeps the pile flowing."))
 
 	view_container = Panel.new()
 	view_container.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	view_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	view_container.custom_minimum_size = Vector2(200, 200)
 	view_container.clip_contents = true
-	root.add_child(view_container)
+	root_container.add_child(view_container)
 
 	grid_view.stretch_mode = TextureRect.STRETCH_SCALE
 	grid_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
