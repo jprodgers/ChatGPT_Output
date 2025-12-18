@@ -95,6 +95,7 @@ var turmite_count: int = 1
 var turmites: Array[Vector2i] = []
 var turmite_directions: Array[int] = []
 var turmite_colors: Array[Color] = []
+var turmite_rules: Array[String] = []
 var turmite_draw_enabled: bool = false
 var turmite_draw_mode: int = WALKER_DRAW_RANDOM
 
@@ -178,6 +179,7 @@ var sand_has_content: bool = false
 @onready var turmite_rule_option: OptionButton = OptionButton.new()
 @onready var turmite_count_spin: SpinBox = SpinBox.new()
 @onready var turmite_color_picker: ColorPickerButton = ColorPickerButton.new()
+@onready var turmite_rule_edit: LineEdit = LineEdit.new()
 @onready var sand_rate_spin: SpinBox = SpinBox.new()
 @onready var sand_amount_spin: SpinBox = SpinBox.new()
 @onready var sand_palette_option: OptionButton = OptionButton.new()
@@ -318,6 +320,8 @@ func sync_turmite_rule_from_option() -> void:
 		if selected_index >= 0 and selected_index < turmite_rule_option.item_count:
 			var choice: String = turmite_rule_option.get_item_text(selected_index)
 			turmite_rule = choice
+	if turmite_rule_edit != null:
+		turmite_rule_edit.text = turmite_rule
 
 func walker_draw_direction(mode: int, rng: RandomNumberGenerator) -> int:
 	match mode:
@@ -1596,6 +1600,7 @@ func add_turmite_at(pos: Vector2i, direction: int, color: Color) -> bool:
 	turmites.append(pos)
 	turmite_directions.append(direction % DIRS.size())
 	turmite_colors.append(color)
+	turmite_rules.append(turmite_rule)
 	return true
 
 func apply_ant_draw_action(pos: Vector2i) -> bool:
@@ -1912,12 +1917,14 @@ func spawn_turmites(count: int, color: Color) -> void:
 		turmites.append(Vector2i(rng.randi_range(0, grid_size.x - 1), rng.randi_range(0, grid_size.y - 1)))
 		turmite_directions.append(rng.randi_range(0, DIRS.size() - 1))
 		turmite_colors.append(color)
+		turmite_rules.append(turmite_rule)
 	request_render()
 
 func clear_turmites() -> void:
 	turmites.clear()
 	turmite_directions.clear()
 	turmite_colors.clear()
+	turmite_rules.clear()
 	turmite_accumulator = 0.0
 	request_render()
 
@@ -1943,6 +1950,8 @@ func remove_turmites_at(pos: Vector2i) -> bool:
 			turmites.remove_at(i)
 			turmite_directions.remove_at(i)
 			turmite_colors.remove_at(i)
+			if i < turmite_rules.size():
+				turmite_rules.remove_at(i)
 			removed = true
 		i -= 1
 	if removed and turmites.is_empty():
@@ -1951,7 +1960,7 @@ func remove_turmites_at(pos: Vector2i) -> bool:
 
 func step_turmites(use_workers: bool = true) -> void:
 	if native_automata != null and native_automata.has_method("step_turmites"):
-		var native_result: Dictionary = native_automata.call("step_turmites", grid, grid_size, edge_mode, turmites, turmite_directions, turmite_colors, turmite_rule)
+		var native_result: Dictionary = native_automata.call("step_turmites", grid, grid_size, edge_mode, turmites, turmite_directions, turmite_colors, turmite_rules)
 		if native_result.has("grid") and native_result["grid"] is PackedByteArray:
 			grid = native_result["grid"]
 		if native_result.has("ants") and native_result["ants"] is Array:
@@ -1960,23 +1969,25 @@ func step_turmites(use_workers: bool = true) -> void:
 			turmite_directions = native_result["directions"]
 		if native_result.has("colors") and native_result["colors"] is Array:
 			turmite_colors = native_result["colors"]
+		if native_result.has("rules") and native_result["rules"] is Array:
+			turmite_rules = native_result["rules"]
 		if native_result.get("changed", true):
 			request_render()
 		return
 	if use_workers and not _grid_sim_busy():
-		var args: Array = [grid.duplicate(), grid_size, edge_mode, turmites.duplicate(), turmite_directions.duplicate(), turmite_colors.duplicate(), turmite_rule]
+		var args: Array = [grid.duplicate(), grid_size, edge_mode, turmites.duplicate(), turmite_directions.duplicate(), turmite_colors.duplicate(), turmite_rules.duplicate()]
 		if _enqueue_sim_task("turmites", Callable(self, "sim_job_turmites"), args):
 			return
 	var remove_indices: Array[int] = []
-	var rule_upper: String = turmite_rule.to_upper()
-	if rule_upper.length() < 2:
-		rule_upper = "RL"
-	var rule_len: int = rule_upper.length()
 	for i in range(turmites.size()):
 		var pos: Vector2i = turmites[i]
 		if pos.x < 0 or pos.x >= grid_size.x or pos.y < 0 or pos.y >= grid_size.y:
 			remove_indices.append(i)
 			continue
+		var rule_upper: String = (i < turmite_rules.size() ? str(turmite_rules[i]) : turmite_rule).to_upper()
+		if rule_upper.length() < 2:
+			rule_upper = "RL"
+		var rule_len: int = rule_upper.length()
 
 		var idx: int = pos.y * grid_size.x + pos.x
 		var current: int = grid[idx]
@@ -2529,21 +2540,21 @@ static func _compute_ants_secondary(grid_in: PackedByteArray, grid_size_in: Vect
 			next_colors.append(Color.WHITE)
 	return {"grid": next_grid, "ants": next_ants, "directions": next_dirs, "colors": next_colors, "changed": changed}
 
-static func _compute_turmites_secondary(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array, rule: String) -> Dictionary:
-	var count: int = min(ants_in.size(), dirs_in.size())
+static func _compute_turmites_secondary(grid_in: PackedByteArray, grid_size_in: Vector2i, edge_mode_in: int, ants_in: Array, dirs_in: Array, colors_in: Array, rules_in: Array) -> Dictionary:
+	var count: int = min(min(ants_in.size(), dirs_in.size()), rules_in.size())
 	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y or count <= 0:
-		return {"grid": grid_in, "ants": ants_in, "directions": dirs_in, "colors": colors_in, "changed": false}
+		return {"grid": grid_in, "ants": ants_in, "directions": dirs_in, "colors": colors_in, "rules": rules_in, "changed": false}
 	var next_grid: PackedByteArray = grid_in
-	var rule_upper: String = rule.to_upper()
-	if rule_upper.length() < 2:
-		rule_upper = "RL"
-	var rule_len: int = rule_upper.length()
 	var next_ants: Array = []
 	var next_dirs: Array = []
 	var next_colors: Array = []
+	var next_rules: Array = []
 	var changed: bool = false
 	for i in range(count):
 		var pos: Vector2i = ants_in[i]
+		var rule_upper: String = str(rules_in[i]).to_upper()
+		if rule_upper.length() < 2:
+			rule_upper = "RL"
 		if pos.x < 0 or pos.x >= grid_size_in.x or pos.y < 0 or pos.y >= grid_size_in.y:
 			changed = true
 			continue
@@ -2552,13 +2563,13 @@ static func _compute_turmites_secondary(grid_in: PackedByteArray, grid_size_in: 
 			dir += DIRS.size()
 		var idx: int = pos.y * grid_size_in.x + pos.x
 		var current: int = next_grid[idx]
-		var rule_idx: int = current % rule_len
+		var rule_idx: int = current % rule_upper.length()
 		var turn: String = rule_upper[rule_idx]
 		if turn == "R":
 			dir = (dir + 1) % DIRS.size()
 		else:
 			dir = (dir + DIRS.size() - 1) % DIRS.size()
-		next_grid[idx] = (current + 1) % rule_len
+		next_grid[idx] = (current + 1) % rule_upper.length()
 		var next: Vector2i = pos + DIRS[dir]
 		match edge_mode_in:
 			EDGE_WRAP:
@@ -2577,11 +2588,12 @@ static func _compute_turmites_secondary(grid_in: PackedByteArray, grid_size_in: 
 			changed = true
 		next_ants.append(next)
 		next_dirs.append(dir)
+		next_rules.append(rule_upper)
 		if i < colors_in.size():
 			next_colors.append(colors_in[i])
 		else:
 			next_colors.append(Color.WHITE)
-	return {"grid": next_grid, "ants": next_ants, "directions": next_dirs, "colors": next_colors, "changed": changed}
+	return {"grid": next_grid, "ants": next_ants, "directions": next_dirs, "colors": next_colors, "rules": next_rules, "changed": changed}
 
 static func _compute_sand_secondary(grid_in: PackedInt32Array, grid_size_in: Vector2i, edge_mode_in: int) -> Dictionary:
 	if grid_size_in.x <= 0 or grid_size_in.y <= 0 or grid_in.size() != grid_size_in.x * grid_size_in.y:
