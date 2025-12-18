@@ -3200,7 +3200,7 @@ static func _sim_wolfram_element(idx: int, grid_in: PackedByteArray, grid_size_i
 	if target_row < 0 or target_row >= grid_size_in.y:
 		return
 	var expected: int = grid_size_in.x * grid_size_in.y
-	if expected <= 0 or next_state.size() != expected:
+	if expected <= 0 or next_state.size() != expected or grid_in.size() != expected:
 		return
 	var left: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, idx - 1, source_row)
 	var center: int = sim_job_sample_cell(grid_in, grid_size_in, edge_mode_in, idx, source_row)
