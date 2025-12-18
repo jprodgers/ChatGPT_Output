@@ -625,7 +625,7 @@ func build_ui() -> void:
 	view_container.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	view_container.custom_minimum_size = Vector2(200, 200)
 	view_container.clip_contents = true
-	root.add_child(view_container)
+	root_container.add_child(view_container)
 
 	grid_view.stretch_mode = TextureRect.STRETCH_SCALE
 	grid_view.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
